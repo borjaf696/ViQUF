@@ -1,0 +1,3 @@
+#Send
+rsync -e "ssh -p 2218" -avp --progress Gatb-trial/ bfreire@xermade.dc.fi.udc.es:/home/bfreire/Gatb-trial
+

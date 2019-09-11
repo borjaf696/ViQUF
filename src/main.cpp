@@ -11,10 +11,12 @@
 /********************************************************************************/
 #define INF 9999999
 
-#define KMERS 15
+#define KMERS 120
 #define ABUNDANCE 132
 #define CLICK_LIMIT 2
 #define DELTA_PATH 600
+
+#define LIMIT_TO_REP 5
 
 #define MIN_SIZE_REP 0.0
 #define CLICK_RATIO 0.1
@@ -190,6 +192,7 @@ public:
     void addEdge(vertex_graph src_pos, vertex_graph target_pos)
     {
         _adjacency_list[src_pos].second.emplace(target_pos);
+        _adjacency_list[target_pos].second.emplace(src_pos);
     }
 
     set<vertex_graph> getNeighbors(const T & node)
@@ -270,6 +273,18 @@ public:
     T getNode(vertex_graph src) const
     {
         return _adjacency_list[src].first;
+    }
+
+    void showGraph()
+    {
+        size_t cont = 0;
+        for (auto p: _adjacency_list)
+        {
+            cout <<cont++<<"->";
+            for (auto l: p.second)
+                cout << " "<<l;
+            cout << endl;
+        }
     }
 private:
     size_t _translateT(const T & node)
@@ -391,23 +406,85 @@ public:
             // We insert all the nodes into our map.
             auto iter = [&] (Node& item)  {
                 _markMap[item] = set<Node>();
-                _hitMap[item] = map<Node, uint16_t>();
                 GraphVector<Node> parents = graph.predecessors(item);
                 for (size_t i = 0; i < parents.size(); ++i)
                     _parent_cliques[item][parents[i]] = vector<set<Node>>();
-                _representativeMap[item] = item;
             };
             graph.iterator().iterate (iter);
+        }
+
+        void update(Graph g)
+        {
+            for (auto n:_representativeMap) {
+                _hitMap[n.second] = map<Node, uint16_t>();
+            }
         }
 
         void mark (const Node& key, Node & repr)
         {
             if (_hitMap[repr].find(key) != _hitMap[repr].end()) {
                 _hitMap[repr][key]++;
+                if (_hitMap[repr][key] == LIMIT_TO_REP)
+                    _markMap[key].emplace(repr);
             }else{
-                _markMap[key].emplace(repr);
                 _hitMap[repr][key] = 1;
+                if (_hitMap[repr][key] == LIMIT_TO_REP)
+                    _markMap[key].emplace(repr);
             }
+        }
+
+        void stats(Graph g, bool large = false)
+        {
+            float num_pairs = 0;
+            ofstream file_hits;
+            file_hits.open("stats/stats-nodes.txt");
+            if (large)
+                cout << "This might take a while..."<<endl;
+            for (auto n:_markMap) {
+                num_pairs += n.second.size();
+                if (large)
+                {
+                    map<size_t, set<Node>> __haplotypes;
+                    for (auto r: n.second)
+                    {
+                        size_t hits = _hitMap[r][n.first];
+                        if (__haplotypes.find(hits) == __haplotypes.end())
+                            __haplotypes[hits] = {r};
+                        else
+                            __haplotypes[hits].emplace(r);
+                    }
+                    Node node = n.first;
+                    file_hits <<"Node: "<< g.toString(n.first)<<" Abundance: "<<g.queryAbundance(node)<<endl;
+                    for (auto r: __haplotypes)
+                    {
+                        file_hits << ">" << r.first <<" "<<r.second.size() <<endl;
+                        for (auto r2: r.second)
+                            file_hits << g.toString(r2)<<" ";
+                        file_hits << endl;
+                    }
+                }
+            }
+            file_hits.close();
+            ofstream file_rep;
+            file_rep.open("stats/stats-repr.txt");
+            float numAvgRepr = 0;
+            size_t singleRepr = 0;
+            for (auto n: _testMap) {
+                numAvgRepr += n.second.size();
+                singleRepr += (n.second.size() == 1)?1:0;
+                if (large)
+                {
+                    file_rep <<"Representant: "<<g.toString(n.first)<<endl;
+                    for (auto r: n.second)
+                        file_rep <<g.toString(r)<<" ";
+                    file_rep << endl;
+                }
+            }
+            file_rep.close();
+            cout << "Number of pairs per node: "<<(num_pairs/_markMap.size())<<endl;
+            cout << "Number of representants: "<<_testMap.size()<<
+                        " Number of nodes represented (by representant): "<<(numAvgRepr / _testMap.size())<<endl;
+            cout << "Number of single representants: "<<singleRepr<<endl;
         }
 
         uint16_t getHitReprVal(Node & repr, Node & val)
@@ -417,6 +494,10 @@ public:
 
         void setRepresentant(const Node & item, Node & representant)
         {
+            if (_testMap.find(representant) == _testMap.end())
+                _testMap[representant] = {item};
+            else
+                _testMap[representant].emplace(item);
             _representativeMap[item] = representant;
         }
 
@@ -428,6 +509,11 @@ public:
         bool inRepresentants(const Node & key)
         {
             return (_representativeMap.find(key) != _representativeMap.end());
+        }
+
+        bool isSolid(const Node & key)
+        {
+            return (_markMap.find(key) != _markMap.end());
         }
 
         set<Node> getSet (const Node& item) const  {  return _markMap.find(item)->second;  }
@@ -448,7 +534,7 @@ public:
         }
 
     private:
-        map<Node,set<Node>> _markMap;
+        map<Node,set<Node>> _markMap, _testMap;
         map<Node,map<Node, uint16_t>> _hitMap;
         map<Node, map<Node, vector<set<Node>>>> _parent_cliques;
         /*
@@ -460,7 +546,7 @@ public:
     class FirstLastMarker
     {
     public:
-        void mark (Node& key, Node & last, Graph g)  {
+        void mark (Node& key, Node & last, Graph & g)  {
             _markMap [key] = last;
         }
 
@@ -469,12 +555,15 @@ public:
             _currNodes = 0;
             for (auto kv:_markMap)
             {
-                if (_transMap.find(kv.first) == _transMap.end() || _transMap.find(kv.second) == _transMap.end()) {
+                if (_transMap.find(kv.first) == _transMap.end())
                     _transMap[kv.first] = _currNodes++;
-                    if (kv.first != kv.second)
-                        _transMap[kv.second] = _currNodes++;
-                }
-                cout << "CurrNodes: "<<_currNodes<<" "<<_transMap.size()<<endl;
+                /*else
+                    cout << g.toString(kv.first)<<" Caso repetido (first)"<<endl;*/
+                if (_transMap.find(kv.second) == _transMap.end())
+                    _transMap[kv.second] = _currNodes++;
+                /*else if (kv.first != kv.second)
+                    cout << g.toString(kv.second)<<" Caso repetido (second): "<<g.indegree(kv.second)<<" "<<g.outdegree(kv.second)<<endl;
+                cout << "CurrNodes: "<<_currNodes<<" "<<_transMap.size()<<endl;*/
             }
         }
 
@@ -493,14 +582,30 @@ public:
             return _transMap.size();
         }
 
-        void fillReach(vector<bool> & reach, Graph g)
+        void exportReach(vector<bool> & reach, Graph & g)
+        {
+            map<size_t, Node> transMapTmp;
+            for (auto m:_transMap)
+                transMapTmp[m.second] = m.first;
+            //Writing the graph
+            size_t numRepr = _transMap.size();
+            ofstream outputFile;
+            outputFile.open ("reachMatrix");
+            for (size_t i = 0; i < numRepr; i++) {
+                outputFile << g.toString(transMapTmp[i])<<"->";
+                for (size_t j = 0; j < numRepr; j++)
+                    outputFile << g.toString(transMapTmp[j])<<",";
+                outputFile<<endl;
+            }
+        }
+
+        void fillReach(vector<bool> & reach, Graph & g)
         {
             vector<bool> checked(_currNodes, false);
             for (auto n: _transMap)
             {
                 size_t distance = 0;
-                checked[n.second] = true;
-                _extent(checked, distance, n.first, n.second, n.first, g);
+                _extent(reach, checked, n.first, n.second, n.first, g);
             }
         }
 
@@ -512,23 +617,54 @@ public:
                 return (*nodeIt).second;
             return INF;
         }
-        void _extent(vector<bool> & checked, size_t & distance, Node src, size_t src_trad, Node cur_node, Graph g)
+        void _extent(vector<bool> & reach, vector<bool> & checked, Node o_src, size_t o_src_trad, Node o_cur_node, Graph & g)
         {
-            if (distance >= (2*DELTA_PATH))
+            if (checked[o_src_trad])
                 return;
-            distance++;
-            GraphVector<Node> neighs = g.successors(cur_node);
-            for (size_t i = 0; i < neighs.size(); ++i)
+            checked[o_src_trad] = true;
+            stack<Node> stack_src, stack_dst;
+            stack<size_t> stack_distance, stack_trad;
+            stack_src.push(o_src);stack_trad.push(o_src_trad);
+            stack_dst.push(o_cur_node);stack_distance.push(0);
+            set<Node> traversed;
+            size_t cur_src = o_src_trad;
+            while (!stack_src.empty())
             {
-                size_t trad = _in(neighs[i]);
-                if (trad != INF)
-                {
-                    checked[(src_trad * _currNodes) + trad] = 1;
-                    size_t newDistance = 0;
-                    checked[trad] = true;
-                    _extent(checked, newDistance, neighs[i], trad, neighs[i], g);
+                //Toppings
+                Node src = stack_src.top(), cur_node = stack_dst.top();
+                size_t src_trad = stack_trad.top(), distance = stack_distance.top();
+                if (src_trad != cur_src) {
+                    traversed.clear();
+                    cur_src = src_trad;
                 }
-                _extent(checked, distance, src, src_trad, neighs[i], g);
+                //Poppings
+                stack_src.pop();stack_trad.pop();
+                stack_dst.pop();stack_distance.pop();
+                if (distance >= (2 * DELTA_PATH)) {
+                    continue;
+                }
+                distance++;
+                GraphVector <Node> neighs = g.successors(cur_node);
+                if (neighs.size() > 1)
+                    if (traversed.find(cur_node) != traversed.end())
+                        continue;
+                    else
+                        traversed.emplace(cur_node);
+                for (size_t i = 0; i < neighs.size(); ++i) {
+                    size_t trad = _in(neighs[i]);
+                    if (trad != INF && !checked[trad]) {
+                        reach[(src_trad * _currNodes) + trad] = 1;
+                        size_t newDistance = 0;
+                        checked[trad] = true;
+                        //_extent(reach, checked, newDistance, neighs[i], trad, neighs[i], g);
+                        stack_src.push(neighs[i]);stack_trad.push(trad);
+                        stack_dst.push(neighs[i]);stack_distance.push(0);
+                    }else if (trad != INF)
+                        reach[(src_trad * _currNodes) + trad] = 1;
+                    //_extent(reach, checked, distance, src, src_trad, neighs[i], g);
+                    stack_src.push(src);stack_trad.push(src_trad);
+                    stack_dst.push(neighs[i]);stack_distance.push(distance++);
+                }
             }
         }
 
@@ -537,7 +673,8 @@ public:
         size_t _currNodes;
     };
 
-    GatbGraph(char * all_reads, char * read_left, char * read_right, bool refinement = false):_read_left(read_left),_read_right(read_right)
+    GatbGraph(char * all_reads, char * read_left, char * read_right, bool refinement = false, bool removeDup = true)
+                        :_read_left(read_left),_read_right(read_right)
     {
         /*
          * Test
@@ -550,7 +687,7 @@ public:
                 };*/
         cout << "Working on GatbGraph"<<endl;
         IBank * inputBank = Bank::open (all_reads);
-        _g = Graph::create (inputBank,  "-kmer-size %d  -abundance-min 132  -verbose 0", KMERS);
+        _g = Graph::create (inputBank,  "-kmer-size %d  -abundance-min %d  -verbose 0", KMERS, ABUNDANCE);
         //_g = Graph::create(new BankStrings (sequences, ARRAY_SIZE(sequences)),  "-kmer-size %d  -abundance-min 1  -verbose 0", 7);
         if (refinement)
         {
@@ -562,13 +699,24 @@ public:
          */
         GraphIterator<Node> it_test = _g.iterator();
         cout << "Number of vertices in graph: "<<it_test.size()<<endl;
-
+        bool showInfo = false;
+        if (showInfo)
+        {
+            cout << "Graph Infomartion: " << endl;
+            cout << _g.getInfo() << endl;
+        }
         cout << "Setting graph"<<endl;
         _pairedInfo.setGraph(_g);
         cout << "Representative kmers"<<endl;
         _getRepresentatives();
+        cout << "Filling out reach matrix"<<endl;
+        _fillReachMatrix();
+        cout << "Export reach Matrix"<<endl;
+        _exportReachMatrix();
         cout << "Adding pair end information"<<endl;
         _addPairedInfo(KMERS);
+        cout << "Building cliques"<<endl;
+        _modify_info();
         cout << "End!"<<endl;
     }
 
@@ -608,8 +756,7 @@ public:
         return results;
     }
 
-    bool is_solid(graphBU node)
-
+    bool isSolidBloom(graphBU node)
     {
         return _g.contains(node);
     }
@@ -685,6 +832,8 @@ private:
         {
             Node v = it.item();
             auto node_extra = getExtraInfoNode(v);
+            if (node_extra.size() > 0)
+                cout << "Nodo: "<<_g.toString(v)<<" "<<cont++<<" "<<node_extra.size()<<endl;
             if (node_extra.empty())
                 continue;
             auto endpoints = getKmerNeighbors(v);
@@ -789,14 +938,14 @@ private:
                         reached = (_reach[getRepresentantTranslation(s_pair.second)*num_representants+getRepresentantTranslation(t_pair.first)]
                                    || _reach[getRepresentantTranslation(t_pair.second)*num_representants+getRepresentantTranslation(s_pair.first)]);
                         //if (node_info.id < 20)
-                        {
+                        /*{
                             cout << "S_pair (s): " << printNode(s_pair.first) << " " << printNode(s_pair.second) << " Translation: "
                                  << getRepresentantTranslation(s_pair.second) << " "
                                  << getRepresentantTranslation(s_pair.first)
                                  << " Tpair (t):" << printNode(t_pair.second) << " " << printNode(t_pair.first) << " Translation: "
                                  << getRepresentantTranslation(t_pair.first)
                                  << " " << getRepresentantTranslation(t_pair.second) << " " << reached << endl;
-                        }
+                        }*/
                         if (reached) {
                             vertex_graph target = local_node_map[getRepresentantTranslation(t)];
                             local_graph.addEdge(source, target);
@@ -804,12 +953,16 @@ private:
                     }
                     local_vect.erase(s);
                 }
+                local_graph.stats();
                 map <vertex_graph, vector<Node>> clique_representation;
                 set <vertex_graph> nodes_erase;
                 set<size_t> idCliques;
                 priority_queue < pair < size_t, vector < vertex_graph >> > output;
                 size_t num_vertex_local = local_graph.getNumVertices(),
                         num_edges_local = local_graph.getNumEdges();
+                /*cout << "GRAPH:"<<endl;
+                local_graph.showGraph();
+                cout << "NumVertex: "<<num_vertex_local<<" NumEdges: "<<num_edges_local<<endl;*/
                 if (((num_vertex_local * (num_vertex_local - 1)) / 2) == (num_edges_local)) {
                     if ((node_extra.size()*PARENT_SON_LIMIT) > neigh_extra.size())
                         continue;
@@ -842,12 +995,17 @@ private:
                             num_clicks++;
                         }
                     } else {
+                        //Show graph
+                        /*cout << "GRAPH:"<<endl;
+                        local_graph.showGraph();*/
                         while (!output.empty() & (edge_transversed.size() != local_graph.getNumVertices())) {
                             pair <size_t, vector<vertex_graph>> top_click = output.top();
                             output.pop();
                             vector <vertex_graph> clique = top_click.second;
                             set<graphBU> local_haplotype;
+                            //cout << "Clique:"<<endl;
                             for (size_t i = 0; i < clique.size(); ++i) {
+                                //cout << " "<<clique[i];
                                 Node node_clique = local_graph.getNode(clique[i]);
                                 for (auto n: store_map[translate_map[node_clique]]){
                                     local_haplotype.emplace(n);
@@ -987,7 +1145,7 @@ private:
         /*
          * Adds counter
          */
-        size_t addsCounter = 0;
+        size_t addsCounter = 0, exclusionNumbers = 0;
         for (progress_iter.first(); !progress_iter.isDone(); progress_iter.next())
         {
             Sequence& s1 = itPair->item().first;
@@ -1000,19 +1158,27 @@ private:
             {
                 string k1 = kmerModel.toString(kmerItLeft->value()), k2 = kmerModel.toString(kmerItRight->value());
                 Node n_left = _g.buildNode(k1.c_str()), n_right = _g.buildNode(k2.c_str());
-                if (_g.contains(n_left) && _g.contains(n_right))
+                if (isSolidBloom(n_left) && isSolidBloom(n_right))
                 {
-                    addsCounter++;
-                    Node right_repr = _pairedInfo.getRepresentant(n_right);
-                    _pairedInfo.mark(n_left, right_repr);
-                }
+                    if (_pairedInfo.isSolid(n_left) && _pairedInfo.inRepresentants(n_right))
+                    {
+                        addsCounter++;
+                        Node right_repr = _pairedInfo.getRepresentant(n_right);
+                        _pairedInfo.mark(n_left, right_repr);
+                    } else
+                        exclusionNumbers++;
+                } else
+                    exclusionNumbers++;
                 kmerItRight.next();
+                if (kmerItRight.isDone())
+                    break;
             }
         }
-        cout << "Number of adds: "<<addsCounter<<endl;
+        cout << "Number of adds: "<<addsCounter<<endl<<"Number of exclusions: "<<exclusionNumbers<<endl;
+        _pairedInfo.stats(_g, true);
     }
 
-    void __extent(Node & n, Node & r, Node & p, set<Node> & visited, bool mark = true)
+    void __extent(Node & n, Node & r, Node & p, set<Node> & visited_in, set<Node> & visited_out, bool mark = true)
     {
         stack<Node> cur_stack, rep_stack, prev_stack;
         cur_stack.push(n);rep_stack.push(r);prev_stack.push(p);
@@ -1047,48 +1213,92 @@ private:
                 exit(1);
             }*/
             current_path.emplace(node);
-            if (indegree == 1 && outdegree <= 1) {
+            if (indegree <= 1 && outdegree <= 1) {
+                mark = true;
                 GraphVector<Node> neighs = _g.successors(node);
                 _pairedInfo.setRepresentant(node, representant);
                 for (size_t i = 0; i < neighs.size(); ++i) {
                     cur_stack.push(neighs[i]);rep_stack.push(representant);prev_stack.push(node);
                 };
+                if (outdegree == 0)
+                    _firstlastInfo.mark(representant, node, _g);
             } else if (outdegree > 1 && indegree <= 1) {
                 if (mark) {
                     _pairedInfo.setRepresentant(node, representant);
                     _firstlastInfo.mark(representant, node, _g);
-                } else
+                } else {
                     mark = true;
+                    if ( indegree == 0)
+                    {
+                        _pairedInfo.setRepresentant(node, node);
+                        _firstlastInfo.mark(node, node, _g);
+                    }
+                }
                 current_path.clear();
-                if (visited.find(node) == visited.end()) {
-                    visited.emplace(node);
+                if (visited_out.find(node) == visited_out.end()) {
+                    visited_out.emplace(node);
                     GraphVector<Node> neighs = _g.successors(node);
                     for (size_t i = 0; i < neighs.size(); ++i){
-                        cur_stack.push(neighs[i]);rep_stack.push(neighs[i]);prev_stack.push(neighs[i]);}
+                        cur_stack.push(neighs[i]);rep_stack.push(neighs[i]);prev_stack.push(neighs[i]);
+                    }
                 }
             } else if (indegree > 1 && outdegree <= 1) {
-                _firstlastInfo.mark(representant, prev_node, _g);
-                _pairedInfo.setRepresentant(node, node);
+                if (mark) {
+                    _firstlastInfo.mark(representant, prev_node, _g);
+                    _pairedInfo.setRepresentant(node, node);
+                } else
+                    mark =  true;
                 current_path.clear();
-                if (visited.find(node) == visited.end()) {
-                    visited.emplace(node);
+                if (visited_in.find(node) == visited_in.end()) {
+                    visited_in.emplace(node);
                     GraphVector<Node> neighs = _g.successors(node);
                     for (size_t i = 0; i < neighs.size(); ++i) {
                         cur_stack.push(neighs[i]);rep_stack.push(node);prev_stack.push(node);
                     }
                 }
             } else if (indegree > 1 && outdegree > 1) {
+                mark = true;
                 _firstlastInfo.mark(representant, prev_node, _g);
                 current_path.clear();
-                if (visited.find(node) == visited.end()) {
-                    visited.emplace(node);
+                if (visited_in.find(node) == visited_in.end()) {
+                    visited_in.emplace(node);
                     _pairedInfo.setRepresentant(node, node);
                     _firstlastInfo.mark(node, node, _g);
                     GraphVector<Node> neighs = _g.successors(node);
                     for (size_t i = 0; i < neighs.size(); ++i){
                         cur_stack.push(neighs[i]);rep_stack.push(neighs[i]);prev_stack.push(neighs[i]);}
+                    //Same for RC
+                    Node reverse = _g.reverse(node);
+                    neighs = _g.successors(reverse);
+                    for (size_t i = 0; i < neighs.size(); ++i){
+                        cur_stack.push(neighs[i]);rep_stack.push(neighs[i]);prev_stack.push(neighs[i]);}
                 }
             }
+        }
+    }
+
+    void _extentCycle(Node initial_node)
+    {
+        Node rep = initial_node, cur_node = initial_node;
+        /*GraphIterator<Node> path = _g.simplePath (initial_node, DIR_INCOMING);
+        for (path.first(); !path.isDone(); path.next())
+        {
+            std::cout << "   [" << path.rank() << "]  current item is " << _g.toString (path.item())<<" "<<_g.indegree(path.item())<<" "<<_g.outdegree(path.item()) << std::endl;
+        }*/
+        while (true)
+        {
+            GraphVector<Node> neighs = _g.successors(cur_node);
+            if (neighs.size() != 1){
+                cout << "Imposible! - "<<_g.toString(cur_node)<<" "<<_g.indegree(cur_node)<<" "<<_g.outdegree(cur_node)<<endl;
+                exit(1);
+            }
+            _pairedInfo.setRepresentant(cur_node, rep);
+            if (neighs[0] == initial_node)
+            {
+                _firstlastInfo.mark(rep, cur_node, _g);
+                return;
+            }
+            cur_node = neighs[0];
         }
     }
 
@@ -1096,38 +1306,51 @@ private:
     {
         vector<Node> start_points;
         GraphIterator<Node> it = _g.iterator();
-        set<Node> visited;
+        set<Node> visited_in, visited_out;
         for (it.first(); !it.isDone();it.next()) {
             Node current = it.item();
             if (_g.indegree(current) == 0) {
                 start_points.push_back(current);
-            } else if (_g.outdegree(current) > 1 && _g.indegree(current) == 1){
+            } else if (_g.outdegree(current) == 0) {
+                start_points.push_back(_g.reverse(current));
+            } else if (_g.indegree(current) > 1) {
+                start_points.push_back(current);
+            } else if (_g.outdegree(current) > 1) {
                 start_points.push_back(current);
             }
         }
         cout << "Number of start points: "<<start_points.size()<<endl;
         size_t cont = 0;
+
         for (auto node : start_points) {
-            cout << "Launch: "<<(cont++)<<endl;
-            __extent(node, node, node, visited, false);
+            __extent(node, node, node, visited_in, visited_out, false);
         }
-        cout << "Pending cycles"<<endl;
+        cout << "Cycles not solved yet!"<<endl;
         it = _g.iterator();
         for (it.first(); !it.isDone(); it.next())
         {
             if (!_pairedInfo.inRepresentants(it.item()))
             {
-                cout << _g.toString(it.item())<<" Not transversed!"<<endl;
+                cout << _g.toString(it.item())<<" Found cycle"<<endl;
+                _extentCycle(it.item());
+                cout << "Cycle solved!"<<endl;
             }
         }
+        _pairedInfo.update(_g);
         _firstlastInfo.buildTransMap(_g);
         cout << "Number of representants: "<<_firstlastInfo.getNumRepr()<<endl;
     }
 
     void _fillReachMatrix()
     {
-        set<Node> transversed;
+        size_t num_repr = _firstlastInfo.getNumRepr();
+        _reach = vector<bool>(num_repr*num_repr, false);
         _firstlastInfo.fillReach(_reach, _g);
+    }
+
+    void _exportReachMatrix()
+    {
+        _firstlastInfo.exportReach(_reach, _g);
     }
 
     Graph _g;
@@ -1372,7 +1595,7 @@ int main (int argc, char* argv[])
         cout << "Start building"<<endl;
         start_time = std::chrono::high_resolution_clock::now();
         IBank * inputBank = Bank::open (all_reads);
-        Graph graph = Graph::create (inputBank,  "-kmer-size %d  -abundance-min 132  -verbose 0", kmerSize);
+        Graph graph = Graph::create (inputBank,  "-kmer-size %d  -abundance-min 0  -verbose 0", kmerSize);
         //Graph graph = Graph::create(new BankStrings (sequences, ARRAY_SIZE(sequences)),  "-kmer-size %d  -abundance-min 1  -verbose 0", kmerSize);
         end_time = std::chrono::high_resolution_clock::now();
         cout << "End building"<<endl;
