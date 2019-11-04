@@ -21,7 +21,7 @@ class UtilsReport:
 class RepresentantGraph:
     exeBcalm = '/home/bfreire/Gatb-trial/third-party/bcalm/build/bcalm'
     exeGFA = '/home/bfreire/Gatb-trial/third-party/bcalm/scripts/convertToGFA.py'
-    outFile = 'tmp/unitigs'
+    outFile, _tail= 'tmp/unitigs', '.unitigs.fa'
     seqs = []
     class GraphStruct:
         def __init__(self):
@@ -39,6 +39,8 @@ class RepresentantGraph:
         self.__indexGFA(self.outFile)
         print('End!')
 
+    def getOutFile(self):
+        return self.outFile+self._tail
 
     def __produceGraphFile(self, args):
         tail = '.unitigs.fa'
@@ -92,7 +94,7 @@ if __name__=='__main__':
         newFiles = BioUtils.renameFastqSeqs(files, tmpDir)
         print('NewFiles: ', newFiles)
         Utils.mkdir(tmpDir+suffix)
-        return [Utils.append_files(newFiles, outputFile), files[0]]
+        return [Utils.append_files(newFiles, outputFile), newFiles[0]]
 
     def __preprocess2(files):
         suffix = 'Ownlatest/'
@@ -101,6 +103,5 @@ if __name__=='__main__':
 
     pathIn = __preprocess(sys.argv[1])
     path, kmerSize, abundanceMin = pathIn[0], sys.argv[2], sys.argv[3]
-    RepresentantGraph(path, kmerSize, abundanceMin)
-    BioUtils.identicalClustering(__preprocess2(pathIn))
-    Utils.remove_file(pathIn)
+    rG = RepresentantGraph(path, kmerSize, abundanceMin)
+    BioUtils.identicalClustering(__preprocess2([pathIn[1],rG.getOutFile()]))

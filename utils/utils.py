@@ -210,7 +210,7 @@ from Bio.SearchIO._utils import get_processor
 class BioUtils:
     @staticmethod
     def identicalClustering(file, program = 'mmseqs', args = ['tmp/clusters','tmp/', '-c','1.0','--min-seq-id',
-                                                              '1.0','-v','3','--seq-id-mode','2','--cov-mode','2','--remove-tmp-files'
+                                                              '1.0','-v','3','--seq-id-mode','0','--cov-mode','1','--remove-tmp-files'
                                                               ,'--dbtype','1']):
         mode = 'easy-cluster'
         cmd = [program,mode,file]+args
@@ -287,8 +287,12 @@ class BioUtils:
         with open(fileOut, 'w+') as fWrite, open(fileOut_2,'w+') as fWrite2:
             for record in SeqIO.parse(file, 'fasta'):
                 fWrite.write(str(record.seq)+'$')
-                fwrite2.write(str(curPos))
                 curPos += len(str(record.seq))+1
+                fWrite2.write(str(curPos-1)+'\n')
+        with  open(fileOut,'r') as fRead, open(fileOut_2,'r') as fRead2:
+            line1 = fRead.readlines()[0]
+            for line in fRead2.readlines():
+                print(line1[int(line)])
 
     @staticmethod
     def readFasta(file, format = 'fasta'):
