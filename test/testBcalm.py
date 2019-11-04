@@ -1,132 +1,13 @@
 #Borja :)
-import os, subprocess, sys
+import sys, os
+sys.path.append('')
+import subprocess
 import altair as alt
 import pandas as pd
 from shutil import copyfile
 from Bio.Seq import Seq
 from Bio.Alphabet import generic_dna
-
-class Utils:
-    @staticmethod
-    def cpfile(source, dest):
-        copyfile(source, dest)
-
-    @staticmethod
-    def getcwd():
-        return os.getcwd()
-
-    @staticmethod
-    def chdir(dir):
-        os.chdir(dir)
-
-    @staticmethod
-    def mkdir(dir):
-        if not os.path.exists(dir):
-            os.mkdir(dir)
-        else:
-            print('Directory: ',dir,' already exists')
-
-    @staticmethod
-    def exist_dir(d):
-        return os.path.isdir(d)
-
-    @staticmethod
-    def remove_file(file):
-        os.remove(file)
-
-    @staticmethod
-    def get_dirs(path, bound = None):
-        if bound is None:
-            return [path+'/'+dI for dI in os.listdir(path) if os.path.isdir(os.path.join(path,dI))]
-        else:
-            dirs = []
-            for dI in os.listdir(path):
-                if len(dirs) == bound:
-                    return dirs
-                if os.path.isdir(os.path.join(path, dI)):
-                    dirs.append(path+'/'+dI)
-            return dirs
-
-    @staticmethod
-    def get_files(path, extension = ['fq','fastq','fasta','fa'], content = None):
-        if content is None:
-            return [path+'/'+t for t in os.listdir(path) if not os.path.isdir(path+'/'+t) and t.split('.')[-1] in extension]
-        else:
-            return [path+'/'+t for t in os.listdir(path) if not os.path.isdir(path+'/'+t) and content in t and t.split('.')[-1] in extension]
-
-    @staticmethod
-    def get_files_recursive(path, extension = ['fq','fa']):
-        paths, results = [path], []
-        while len(paths) > 0:
-            p = paths[0]
-            paths = paths[1:len(paths)]
-            for t in os.listdir(p):
-                n_path = p+'/'+t
-                if os.path.isdir(n_path):
-                    paths.append(n_path)
-                elif t.split('.')[-1] in extension:
-                    results.append(n_path)
-        return results
-
-    @staticmethod
-    def get_files_recursive_content(path, content, threshold = None, avoid = None):
-        paths, results = [path], []
-        while len(paths) > 0:
-            p = paths[0]
-            paths = paths[1:len(paths)]
-            for t in os.listdir(p):
-                n_path = p + '/' + t
-                if os.path.isdir(n_path):
-                    paths.append(n_path)
-                elif content in n_path and avoid is not None and avoid not in n_path:
-                    results.append(n_path)
-                elif content in n_path and avoid is None:
-                    results.append(n_path)
-            if threshold is not None and len(results) > threshold:
-                return results
-        return results
-
-    @staticmethod
-    def append_files(list_files, output_file):
-        with open(output_file,'w+') as out_file:
-            for f in list_files:
-                with open(f,'r') as f_read:
-                    for line in f_read.readlines():
-                        out_file.write(line)
-
-    @staticmethod
-    def executecmd(args, out = None):
-        '''
-        :param path: LIST of args
-        :return:
-        '''
-        if out is None:
-            subprocess.call(args)
-        else:
-            with open(out, 'w+') as fpout:
-                subprocess.call(args, stdout = fpout)
-
-    @staticmethod
-    def write_list(lst,output, type = 'int'):
-        with open(output, 'w+') as f:
-            for l in lst:
-                if type != 'int':
-                    line = ','.join(map(lambda x:str(x),l))
-                    f.write(line+'\n')
-                else:
-                    f.write(str(l)+'\n')
-
-    @staticmethod
-    def export_dict(dictionary,name, format = 'csv'):
-        assert format == 'csv'
-
-        if format == 'csv':
-            with open(name, 'w+') as f:
-                for key, val in dictionary.items():
-                    f.write(str(key))
-                    for k,v in val.items():
-                        f.write(','+str(v))
-                    f.write('\n')
+from utils.utils import *
 
 class UtilsReport:
     @staticmethod
@@ -140,7 +21,7 @@ class UtilsReport:
 class RepresentantGraph:
     exeBcalm = '/home/bfreire/Gatb-trial/third-party/bcalm/build/bcalm'
     exeGFA = '/home/bfreire/Gatb-trial/third-party/bcalm/scripts/convertToGFA.py'
-    outFile = 'unitigs'
+    outFile = 'tmp/unitigs'
     seqs = []
     class GraphStruct:
         def __init__(self):
@@ -167,6 +48,8 @@ class RepresentantGraph:
         cmd = ['python',self.exeGFA,args['out']+tail,args['out'],args['kmerSize']]
         print('ToGFA cmd: ', cmd)
         Utils.executecmd(cmd)
+        print('ToFm')
+        BioUtils.fastToFm(args['out']+tail,args['out']+'.FM')
 
     def __indexGFA(self, file):
         numSeqs, min, max = 0, 9999999, 0
@@ -199,5 +82,25 @@ class RepresentantGraph:
 
 if __name__=='__main__':
     print('Lets do this')
-    path, kmerSize, abundanceMin = sys.argv[1], sys.argv[2], sys.argv[3]
+    tmpDir = 'tmp/'
+    readFiles = []
+    def __preprocess(path):
+        Utils.mkdir(tmpDir)
+        suffix = 'Ownlatest/'
+        files, outputFile = Utils.get_files(path,['fastq']), tmpDir+suffix+'append.fasta'
+        print('Files: ', files)
+        newFiles = BioUtils.renameFastqSeqs(files, tmpDir)
+        print('NewFiles: ', newFiles)
+        Utils.mkdir(tmpDir+suffix)
+        return [Utils.append_files(newFiles, outputFile), files[0]]
+
+    def __preprocess2(files):
+        suffix = 'Ownlatest/'
+        outputFile = tmpDir+suffix+'merge.fasta'
+        return Utils.append_files(files, outputFile)
+
+    pathIn = __preprocess(sys.argv[1])
+    path, kmerSize, abundanceMin = pathIn[0], sys.argv[2], sys.argv[3]
     RepresentantGraph(path, kmerSize, abundanceMin)
+    BioUtils.identicalClustering(__preprocess2(pathIn))
+    Utils.remove_file(pathIn)

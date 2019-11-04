@@ -10,6 +10,7 @@
     #include <fstream>
     #include <iostream>
     #include <sys/stat.h>
+    #include <gatb/gatb_core.hpp>
     #include <boost/config.hpp>
     #include <boost/filesystem.hpp>
     #include <boost/program_options.hpp>
@@ -215,6 +216,15 @@
      */
     struct Bio
     {
+        static vector<Sequence> readFastq(char * file)
+        {
+            IBank* inputBank = Bank::open (file);
+            Iterator<Sequence>* it = inputBank->iterator();
+            vector<Sequence> output;
+            for (it->first(); !it->isDone(); it->next())
+                output.push_back(it->item());
+            return output;
+        }
         static bool pairedEnd(string A, string B)
         {
             string delimiter = ".";
