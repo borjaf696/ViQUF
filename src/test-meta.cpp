@@ -61,8 +61,8 @@ void _traverseReads(char * file,const FMIndex & fm, size_t kmerSize)
          * KmerIteration
          */
         Data data ((char*)itSeq->item().toString().c_str());
-        Kmer<128>::ModelCanonical model (kmerSize);
-        Kmer<128>::ModelCanonical::Iterator it (model);
+        Kmer<256>::ModelCanonical model (kmerSize);
+        Kmer<256>::ModelCanonical::Iterator it (model);
         it.setData (data);
         for (it.first(); !it.isDone(); it.next())
         {
