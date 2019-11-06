@@ -9,7 +9,12 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4458d666-b6f4-4905-bf09-67ebaea7f54d" name="Default Changelist" comment="" />
+    <list default="true" id="4458d666-b6f4-4905-bf09-67ebaea7f54d" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/Gatb-trial.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/Gatb-trial.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/gatb-core" beforeDir="true" afterPath="$PROJECT_DIR$/lib/gatb-core" afterDir="true" />
+      <change beforePath="$PROJECT_DIR$/src/main.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.cpp" afterDir="false" />
+    </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -18,71 +23,56 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/main.cpp">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="210">
-              <caret line="14" column="21" selection-start-line="14" selection-start-column="21" selection-end-line="14" selection-end-column="21" />
-              <folding>
-                <element signature="e#515#527#0" expanded="true" />
-                <element signature="e#482#637#0" />
-                <element signature="e#647#659#0" expanded="true" />
-                <element signature="e#639#883#0" />
-                <element signature="e#893#905#0" expanded="true" />
-                <element signature="e#885#1182#0" />
-                <element signature="e#1192#1204#0" expanded="true" />
-                <element signature="e#1184#1353#0" />
-                <element signature="e#1363#1375#0" expanded="true" />
-                <element signature="e#1355#1454#0" />
-                <element signature="e#1464#1476#0" expanded="true" />
-                <element signature="e#1456#1644#0" />
-                <element signature="e#1655#1667#0" expanded="true" />
-                <element signature="e#1646#2147#0" />
-                <element signature="e#2157#2169#0" expanded="true" />
-                <element signature="e#2149#2402#0" />
-                <element signature="e#2412#2424#0" expanded="true" />
-                <element signature="e#2404#2934#0" />
-                <element signature="e#2944#2956#0" expanded="true" />
-                <element signature="e#2936#3294#0" />
-                <element signature="e#3304#3316#0" expanded="true" />
-                <element signature="e#3296#3595#0" />
-                <element signature="e#3605#3617#0" expanded="true" />
-                <element signature="e#3698#3710#0" expanded="true" />
-                <element signature="e#6283#6320#0" />
-                <element signature="e#5052#5077#0" expanded="true" />
-                <element signature="e#11689#12204#0" />
-                <element signature="e#15380#17570#0" />
-                <element signature="e#14257#14287#0" />
-                <element signature="e#15458#15592#0" />
-                <element signature="e#15598#15692#0" />
-                <element signature="e#15698#15977#0" />
-                <element signature="e#15983#16080#0" />
-                <element signature="e#16086#16363#0" />
-                <element signature="e#16449#16522#0" />
-                <element signature="e#16528#16624#0" />
-                <element signature="e#17063#17146#0" />
-                <element signature="e#16631#16689#0" />
-                <element signature="e#16911#16981#0" />
-                <element signature="e#16954#17076#0" />
-                <element signature="e#16976#17043#0" />
-                <element signature="e#17406#17455#0" />
-                <element signature="e#17514#17602#0" />
-                <element signature="e#17739#17827#0" />
-                <element signature="e#18206#18306#0" />
-                <element signature="e#21154#37636#0" />
-                <element signature="e#28230#28877#0" />
-                <element signature="e#14505#15730#0" />
-                <element signature="e#19516#19873#0" />
-                <element signature="e#3252#3332#0" />
-                <element signature="e#3334#3416#0" />
-                <element signature="e#3418#3685#0" />
-                <element signature="e#3687#3952#0" />
-                <element signature="e#3954#4031#0" />
-                <element signature="e#4033#6585#0" />
-                <element signature="e#4372#6892#0" />
-                <element signature="e#6894#7276#0" />
-                <element signature="e#7278#8376#0" />
-              </folding>
+            <state relative-caret-position="252">
+              <caret line="1147" column="30" selection-start-line="1147" selection-start-column="30" selection-end-line="1147" selection-end-column="30" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/src/test-meta.cpp">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="622">
+              <caret line="80" column="1" lean-forward="true" selection-start-line="80" selection-start-column="1" selection-end-line="80" selection-end-column="1" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/lib/utils/utils.h">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="282">
+              <caret line="20" column="23" selection-start-line="20" selection-start-column="23" selection-end-line="20" selection-end-column="23" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/test/testBcalm.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="607">
+              <caret line="87" column="18" lean-forward="true" selection-start-line="87" selection-start-column="18" selection-end-line="87" selection-end-column="18" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/utils/utils.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="307">
+              <caret line="286" column="6" lean-forward="true" selection-start-line="286" selection-start-column="6" selection-end-line="286" selection-end-column="6" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/send">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="15">
+              <caret line="1" selection-start-line="1" selection-end-line="1" selection-end-column="104" />
             </state>
           </provider>
         </entry>
@@ -99,21 +89,23 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/Makefile">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="60">
-              <caret line="4" column="39" selection-start-line="4" selection-start-column="39" selection-end-line="4" selection-end-column="39" />
+            <state relative-caret-position="225">
+              <caret line="15" column="38" lean-forward="true" selection-start-line="15" selection-start-column="38" selection-end-line="15" selection-end-column="38" />
             </state>
           </provider>
         </entry>
       </file>
     </leaf>
   </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>getNode</find>
-      <find>getVertex</find>
-      <find>getVertex_Id</find>
-      <find>endpoint</find>
-      <find>removeCliquesParent</find>
       <find>currnodes</find>
       <find>showGraph</find>
       <find>local_g</find>
@@ -139,18 +131,32 @@
       <find>Nodo</find>
       <find>abundance</find>
       <find>_markMap</find>
+      <find>infoLine</find>
+      <find>append_f</find>
+      <find>bit</find>
+      <find>model</find>
+      <find>append_files</find>
     </findStrings>
     <replaceStrings>
       <replace>set</replace>
       <replace>map</replace>
     </replaceStrings>
   </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
   <component name="IdeDocumentHistory">
     <option name="CHANGED_PATHS">
       <list>
-        <option value="$PROJECT_DIR$/Makefile" />
         <option value="$PROJECT_DIR$/Todo" />
+        <option value="$PROJECT_DIR$/lib/utils/utils.h" />
+        <option value="$PROJECT_DIR$/lib/utils/utils.py" />
+        <option value="$PROJECT_DIR$/third-party/utils/__init__.py" />
+        <option value="$PROJECT_DIR$/test/testBcalm.py" />
+        <option value="$PROJECT_DIR$/Makefile" />
         <option value="$PROJECT_DIR$/src/main.cpp" />
+        <option value="$PROJECT_DIR$/utils/utils.py" />
+        <option value="$PROJECT_DIR$/src/test-meta.cpp" />
       </list>
     </option>
   </component>
@@ -165,7 +171,6 @@
       <foldersAlwaysOnTop value="true" />
     </navigator>
     <panes>
-      <pane id="Scope" />
       <pane id="ProjectPane">
         <subPane>
           <expand>
@@ -181,16 +186,48 @@
             <path>
               <item name="Gatb-trial" type="b2602c69:ProjectViewProjectNode" />
               <item name="Gatb-trial" type="462c0819:PsiDirectoryNode" />
+              <item name="lib" type="462c0819:PsiDirectoryNode" />
+              <item name="utils" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="Gatb-trial" type="b2602c69:ProjectViewProjectNode" />
+              <item name="Gatb-trial" type="462c0819:PsiDirectoryNode" />
               <item name="src" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="Gatb-trial" type="b2602c69:ProjectViewProjectNode" />
+              <item name="Gatb-trial" type="462c0819:PsiDirectoryNode" />
+              <item name="test" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="Gatb-trial" type="b2602c69:ProjectViewProjectNode" />
+              <item name="Gatb-trial" type="462c0819:PsiDirectoryNode" />
+              <item name="third-party" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="Gatb-trial" type="b2602c69:ProjectViewProjectNode" />
+              <item name="Gatb-trial" type="462c0819:PsiDirectoryNode" />
+              <item name="utils" type="462c0819:PsiDirectoryNode" />
             </path>
           </expand>
           <select />
         </subPane>
       </pane>
+      <pane id="Scope" />
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/third-party/utils" />
+    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
+  </component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$" />
+    </key>
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/third-party/utils" />
+      <recent name="$PROJECT_DIR$/lib/utils" />
+    </key>
   </component>
   <component name="RunDashboard">
     <option name="ruleStates">
@@ -204,6 +241,9 @@
       </list>
     </option>
   </component>
+  <component name="SvnConfiguration">
+    <configuration />
+  </component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
       <changelist id="4458d666-b6f4-4905-bf09-67ebaea7f54d" name="Default Changelist" comment="" />
@@ -215,37 +255,34 @@
     <servers />
   </component>
   <component name="ToolWindowManager">
-    <frame x="65" y="24" width="1855" height="942" extended-state="6" />
+    <frame x="64" y="-11" width="1857" height="978" extended-state="6" />
     <editor active="true" />
     <layout>
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.2570481" />
-      <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
+      <window_info active="true" id="Project" order="0" visible="true" weight="0.25594252" />
+      <window_info id="Structure" order="1" weight="0.25" />
       <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
-      <window_info anchor="bottom" id="Find" order="1" weight="0.32936978" />
+      <window_info anchor="bottom" id="Find" order="1" />
       <window_info anchor="bottom" id="Run" order="2" />
       <window_info anchor="bottom" id="Debug" order="3" weight="0.4" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
       <window_info anchor="bottom" id="TODO" order="6" />
-      <window_info anchor="bottom" id="Database Changes" order="7" />
-      <window_info anchor="bottom" id="Version Control" order="8" />
-      <window_info anchor="bottom" id="Terminal" order="9" />
-      <window_info anchor="bottom" id="Event Log" order="10" side_tool="true" />
-      <window_info anchor="right" id="Commander" order="0" weight="0.4" />
+      <window_info anchor="bottom" id="Version Control" order="7" />
+      <window_info anchor="bottom" id="Terminal" order="8" />
+      <window_info anchor="bottom" id="Event Log" order="9" side_tool="true" />
+      <window_info anchor="bottom" id="Python Console" order="10" />
+      <window_info anchor="bottom" id="Database Changes" order="11" />
+      <window_info anchor="right" id="Commander" internal_type="SLIDING" order="0" type="SLIDING" weight="0.4" />
       <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
       <window_info anchor="right" id="Database" order="3" />
     </layout>
   </component>
+  <component name="VcsContentAnnotationSettings">
+    <option name="myLimit" value="2678400000" />
+  </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/Makefile">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="60">
-          <caret line="4" column="39" selection-start-line="4" selection-start-column="39" selection-end-line="4" selection-end-column="39" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/Todo">
       <provider selected="true" editor-type-id="text-editor">
         <state>
@@ -253,70 +290,64 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/send">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="15">
+          <caret line="1" selection-start-line="1" selection-end-line="1" selection-end-column="104" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/lib/utils/utils.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <folding>
+            <element signature="e#0#21#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/utils/__init__.py">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/lib/utils/utils.h">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="282">
+          <caret line="20" column="23" selection-start-line="20" selection-start-column="23" selection-end-line="20" selection-end-column="23" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/Makefile">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="225">
+          <caret line="15" column="38" lean-forward="true" selection-start-line="15" selection-start-column="38" selection-end-line="15" selection-end-column="38" />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/src/main.cpp">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="210">
-          <caret line="14" column="21" selection-start-line="14" selection-start-column="21" selection-end-line="14" selection-end-column="21" />
-          <folding>
-            <element signature="e#515#527#0" expanded="true" />
-            <element signature="e#482#637#0" />
-            <element signature="e#647#659#0" expanded="true" />
-            <element signature="e#639#883#0" />
-            <element signature="e#893#905#0" expanded="true" />
-            <element signature="e#885#1182#0" />
-            <element signature="e#1192#1204#0" expanded="true" />
-            <element signature="e#1184#1353#0" />
-            <element signature="e#1363#1375#0" expanded="true" />
-            <element signature="e#1355#1454#0" />
-            <element signature="e#1464#1476#0" expanded="true" />
-            <element signature="e#1456#1644#0" />
-            <element signature="e#1655#1667#0" expanded="true" />
-            <element signature="e#1646#2147#0" />
-            <element signature="e#2157#2169#0" expanded="true" />
-            <element signature="e#2149#2402#0" />
-            <element signature="e#2412#2424#0" expanded="true" />
-            <element signature="e#2404#2934#0" />
-            <element signature="e#2944#2956#0" expanded="true" />
-            <element signature="e#2936#3294#0" />
-            <element signature="e#3304#3316#0" expanded="true" />
-            <element signature="e#3296#3595#0" />
-            <element signature="e#3605#3617#0" expanded="true" />
-            <element signature="e#3698#3710#0" expanded="true" />
-            <element signature="e#6283#6320#0" />
-            <element signature="e#5052#5077#0" expanded="true" />
-            <element signature="e#11689#12204#0" />
-            <element signature="e#15380#17570#0" />
-            <element signature="e#14257#14287#0" />
-            <element signature="e#15458#15592#0" />
-            <element signature="e#15598#15692#0" />
-            <element signature="e#15698#15977#0" />
-            <element signature="e#15983#16080#0" />
-            <element signature="e#16086#16363#0" />
-            <element signature="e#16449#16522#0" />
-            <element signature="e#16528#16624#0" />
-            <element signature="e#17063#17146#0" />
-            <element signature="e#16631#16689#0" />
-            <element signature="e#16911#16981#0" />
-            <element signature="e#16954#17076#0" />
-            <element signature="e#16976#17043#0" />
-            <element signature="e#17406#17455#0" />
-            <element signature="e#17514#17602#0" />
-            <element signature="e#17739#17827#0" />
-            <element signature="e#18206#18306#0" />
-            <element signature="e#21154#37636#0" />
-            <element signature="e#28230#28877#0" />
-            <element signature="e#14505#15730#0" />
-            <element signature="e#19516#19873#0" />
-            <element signature="e#3252#3332#0" />
-            <element signature="e#3334#3416#0" />
-            <element signature="e#3418#3685#0" />
-            <element signature="e#3687#3952#0" />
-            <element signature="e#3954#4031#0" />
-            <element signature="e#4033#6585#0" />
-            <element signature="e#4372#6892#0" />
-            <element signature="e#6894#7276#0" />
-            <element signature="e#7278#8376#0" />
-          </folding>
+        <state relative-caret-position="252">
+          <caret line="1147" column="30" selection-start-line="1147" selection-start-column="30" selection-end-line="1147" selection-end-column="30" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/test/testBcalm.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="607">
+          <caret line="87" column="18" lean-forward="true" selection-start-line="87" selection-start-column="18" selection-end-line="87" selection-end-column="18" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/utils/utils.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="307">
+          <caret line="286" column="6" lean-forward="true" selection-start-line="286" selection-start-column="6" selection-end-line="286" selection-end-column="6" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/test-meta.cpp">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="622">
+          <caret line="80" column="1" lean-forward="true" selection-start-line="80" selection-start-column="1" selection-end-line="80" selection-end-column="1" />
         </state>
       </provider>
     </entry>

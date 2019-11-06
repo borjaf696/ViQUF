@@ -11,12 +11,12 @@
 /********************************************************************************/
 #define INF 9999999
 
-#define KMERS 120
-#define ABUNDANCE 132
+#define KMERS 20
+#define ABUNDANCE 1
 #define CLICK_LIMIT 2
 #define DELTA_PATH 600
 
-#define LIMIT_TO_REP 5
+#define LIMIT_TO_REP 1
 
 #define MIN_SIZE_REP 0.0
 #define CLICK_RATIO 0.1
@@ -396,6 +396,11 @@ class GatbGraph
 public:
     typedef Node graphBU;
 
+    struct NodeStrand{
+        Node node;
+
+    };
+
     class PairedInfoMarker
     {
     public:
@@ -702,7 +707,7 @@ public:
         bool showInfo = false;
         if (showInfo)
         {
-            cout << "Graph Infomartion: " << endl;
+            cout << "Graph Information: " << endl;
             cout << _g.getInfo() << endl;
         }
         cout << "Setting graph"<<endl;
