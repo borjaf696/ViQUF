@@ -10,21 +10,35 @@ CXXFLAGS += ${GATBFLAGS}
 LDFLAGS= -L$(GATB_LIB) -lgatbcore  -lpthread -lhdf5 -lz -std=c++0x -ldl -static
 SDSLFLAGS = -L ~/lib -lsdsl -ldivsufsort -ldivsufsort64
 
+#Graph
+graphObj := ${patsubst %.cpp,%.o,${wildcard lib/graph/*.cpp}}
+lib/graph/%.o: lib/graph/%.cpp graph/*.h lib/utils/*h
+	${CXX} -c ${CXXFLAGS} $< -o $@
+
 #Main_code
 m_main_obj := ${patsubst %.cpp,%.o,${wildcard src/*.cpp}}
 src/%.o: src/%.cpp 
 	${CXX} -c ${CXXFLAGS} ${SDSLFLAGS} $< -o $@
 
 #Read_Seqs
-p_obj := ${patsubst %.cpp,%.o,${wildcard Utils/*.cpp}}
-Utils/%.o: Utils/%.cpp Utils/*h
+p_obj := ${patsubst %.cpp,%.o,${wildcard lib/utils/*.cpp}}
+lib/utils/%.o: lib/utils/%.cpp lib/utils/*h
 	${CXX} -c ${CXXFLAGS} ${LDFLAGS} $< -o $@
 
-m_code_release := src/test-meta.o
+mCodeRelease := src/test-meta.o
+mCodeGatb := src/main.o
 
 all: ${m_main_obj}
-	${CXX} ${m_code_release} -o output.out ${LDFLAGS} ${SDSLFLAGS}
+	${CXX} ${mCodeRelease} -o bin/output.out ${LDFLAGS} ${SDSLFLAGS}
+
+meta: ${m_main_obj} ${graphObj}
+	${CXX} ${mCodeRelease} -o bin/meta.out ${LDFLAGS} ${SDSLFLAGS}
+
+gatb :${mCodeGatb}
+	${CXX} ${mCodeGatb} -o bin/basic.out ${LDFLAGS} ${SDSLFLAGS}
+
 
 #Clean
 clean:
+	-rm ${graphObj}
 	-rm ${m_main_obj}

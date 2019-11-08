@@ -289,10 +289,6 @@ class BioUtils:
                 fWrite.write(str(record.seq)+'$')
                 curPos += len(str(record.seq))+1
                 fWrite2.write(str(curPos-1)+'\n')
-        with  open(fileOut,'r') as fRead, open(fileOut_2,'r') as fRead2:
-            line1 = fRead.readlines()[0]
-            for line in fRead2.readlines():
-                print(line1[int(line)])
 
     @staticmethod
     def readFasta(file, format = 'fasta'):

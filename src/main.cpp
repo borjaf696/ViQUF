@@ -693,7 +693,7 @@ public:
         cout << "Working on GatbGraph"<<endl;
         IBank * inputBank = Bank::open (all_reads);
         _g = Graph::create (inputBank,  "-kmer-size %d  -abundance-min %d  -verbose 0", KMERS, ABUNDANCE);
-        //_g = Graph::create(new BankStrings (sequences, ARRAY_SIZE(sequences)),  "-kmer-size %d  -abundance-min 1  -verbose 0", 7);
+        //_g = graph::create(new BankStrings (sequences, ARRAY_SIZE(sequences)),  "-kmer-size %d  -abundance-min 1  -verbose 0", 7);
         if (refinement)
         {
             cout << "Simplifying the graph (same refinement as SPAdes)"<<endl;
@@ -707,7 +707,7 @@ public:
         bool showInfo = false;
         if (showInfo)
         {
-            cout << "Graph Information: " << endl;
+            cout << "graph Information: " << endl;
             cout << _g.getInfo() << endl;
         }
         cout << "Setting graph"<<endl;
@@ -726,7 +726,7 @@ public:
     }
 
     /*
-     * Graph basic methods
+     * graph basic methods
      */
     size_t in_degree(Graph graph, graphBU node)
     {
@@ -1601,7 +1601,7 @@ int main (int argc, char* argv[])
         start_time = std::chrono::high_resolution_clock::now();
         IBank * inputBank = Bank::open (all_reads);
         Graph graph = Graph::create (inputBank,  "-kmer-size %d  -abundance-min 0  -verbose 0", kmerSize);
-        //Graph graph = Graph::create(new BankStrings (sequences, ARRAY_SIZE(sequences)),  "-kmer-size %d  -abundance-min 1  -verbose 0", kmerSize);
+        //graph graph = graph::create(new BankStrings (sequences, ARRAY_SIZE(sequences)),  "-kmer-size %d  -abundance-min 1  -verbose 0", kmerSize);
         end_time = std::chrono::high_resolution_clock::now();
         cout << "End building"<<endl;
         ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();

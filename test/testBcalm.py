@@ -21,22 +21,32 @@ class UtilsReport:
 class RepresentantGraph:
     exeBcalm = '/home/bfreire/Gatb-trial/third-party/bcalm/build/bcalm'
     exeGFA = '/home/bfreire/Gatb-trial/third-party/bcalm/scripts/convertToGFA.py'
-    outFile, _tail= 'tmp/unitigs', '.unitigs.fa'
+    outFile, _tail, _graphExt= 'tmp/unitigs', '.unitigs.fa', '.graph'
     seqs = []
     class GraphStruct:
         def __init__(self):
-            self.graph = dict()
+            self._graph = dict()
 
         def addVertex(self, u):
-            self.graph[u] = []
+            self._graph[u] = []
 
         def addEdge(self, u, v):
-            self.graph[u].append(v)
+            self._graph[u].append(v)
+
+        def exportGraph(self, outputFile):
+            with open(outputFile, 'w+') as fWrite:
+                for key, val in self._graph.items():
+                    fWrite.write(str(key)+' ')
+                    for v in val:
+                        fWrite.write(str(v)+',')
+                    fWrite.write('\n')
 
     def __init__(self, path = None, kmerSize = 30, abundanceMin = 1):
         self._g, self._kmerSize = self.GraphStruct(), int(kmerSize)
         self.__produceGraphFile({'in':path, 'kmerSize':kmerSize,'abundanceMin':abundanceMin,'out':self.outFile})
         self.__indexGFA(self.outFile)
+
+        self._g.exportGraph(self.outFile+self._graphExt)
         print('End!')
 
     def getOutFile(self):
@@ -67,20 +77,21 @@ class RepresentantGraph:
                     min = unitigLength if min > unitigLength else min
                     max = unitigLength if max < unitigLength else max
             print('Exporting histogram:')
-            histogram = histogram[min-1:max+1]
+            histogram = histogram[0:max+1]
             UtilsReport.exportHistogram(histogram, 'stats/histogram.html')
             print('Histogram available!\nTotal Sequences: ',2*numSeqs)
             self._unitigs = numSeqs
             for i in range(0,2*numSeqs):
                 self._g.addVertex(i)
+        with open(file, 'r') as f:
             for line in f.readlines():
                 if line[0] == 'L':
                     print('L: ', line)
                     infoLine = line.split('\t')
                     ori, target = int(infoLine[1]) if infoLine[2] == '+' else int(infoLine[1])+numSeqs\
                         , int(infoLine[3]) if infoLine[4] == '+' else int(infoLine[3])+numSeqs
-                    self.__g.addEdge(ori, target)
-        print(self.seqs[0:25])
+                    self._g.addEdge(ori, target)
+
 
 if __name__=='__main__':
     print('Lets do this')
@@ -104,4 +115,5 @@ if __name__=='__main__':
     pathIn = __preprocess(sys.argv[1])
     path, kmerSize, abundanceMin = pathIn[0], sys.argv[2], sys.argv[3]
     rG = RepresentantGraph(path, kmerSize, abundanceMin)
+
     BioUtils.identicalClustering(__preprocess2([pathIn[1],rG.getOutFile()]))
