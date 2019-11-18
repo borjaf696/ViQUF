@@ -5,6 +5,13 @@
 #ifndef GATB_TRIAL_GRAPH_H
 #define GATB_TRIAL_GRAPH_H
 #include <unordered_set>
+#include <vector>
+#include <sstream>
+#include <iostream>
+#include <iomanip>
+#include <fstream>
+
+#define NO_NEIGH 9999999
 
 using namespace std;
 
@@ -29,11 +36,31 @@ public:
      */
     DBG(){}
     DBG(char *);
+    DBG(const DBG&);
 
+    /*
+     * Operators
+     */
+
+    DBG& operator=(const DBG && dbg)
+    {
+        _g = dbg._g;
+        _pairedEndInformation = dbg._pairedEndInformation;
+        _numedges = dbg._numedges;
+        return *this;
+    }
+
+    DBG& operator=(const DBG & dbg)
+    {
+        _g = dbg._g;
+        _pairedEndInformation = dbg._pairedEndInformation;
+        _numedges = dbg._numedges;
+        return *this;
+    }
     /*
      * Methods graph
      */
-    size_t getNeighbor(size_t, bool = true);
+    vector<size_t> getNeighbor(size_t, bool = true);
 
     /*
      * PairedEnd
@@ -49,7 +76,7 @@ public:
     size_t edges();
 private:
     vector<vector<size_t>> _g;
-    unordered_set<size_t> _pairedEndInformation;
+    vector<unordered_set<size_t>> _pairedEndInformation;
     size_t _numedges;
 };
 

@@ -46,7 +46,8 @@ void _buildBitMap(bit_vector & bDolars, RankOnes & bDolarRank, SelectOnes  & bDo
     ifstream dolarsFile(dolars);
     string line;
     size_t count = 0;
-    while (getline(dolarsFile, line)){
+    while (getline(dolarsFile, line))
+    {
         std::istringstream iss(line);
         if (!(iss >> count)) { break; }
     }
@@ -63,45 +64,88 @@ void _buildBitMap(bit_vector & bDolars, RankOnes & bDolarRank, SelectOnes  & bDo
     dolarsFile.close();
     bDolarSelect = select_support_mcl<1>(&bDolars);
     bDolarRank = rank_support_v<1>(&bDolars);
-    cout << "Rank: "<<bDolarRank(count)<<endl;
+    cout << "Select: "<<bDolarSelect(1)<<endl;
+    cout << "Rank: "<<bDolarRank(bDolarSelect(1)+1)<<endl;
     //cout << "Select: "<<bDolarSelect(1)<<" Rank: "<<bDolarRank(bDolarSelect(1))<<endl;
 }
 
-void _traverseReads(char * file,const FMIndex & fm, const RankOnes & rank, const SelectOnes & select, size_t kmerSize)
+void _traverseReads(char * file_left, char * file_right ,const FMIndex & fm, const RankOnes & rank,
+        const SelectOnes & select, size_t kmerSize, DBG & g)
 {
+    cout << "Traversing reads!"<<endl;
     auto start = chrono::steady_clock::now();
-    IBank* inputBank = Bank::open (file);
-    Iterator<Sequence>* itSeq = inputBank->iterator();
+    /*
+     * Paired_end input banks
+     */
+    IBank* inputBank_left = Bank::open (file_left);
+    IBank* inputBank_right = Bank::open(file_right);
 
-    for (itSeq->first(); !itSeq->isDone(); itSeq->next())
+    PairedIterator <Sequence> *itPair = new PairedIterator<Sequence>(inputBank_left->iterator(), inputBank_right->iterator());
+    ProgressIterator <std::pair<Sequence, Sequence>> progress_iter(itPair, "paired-end", inputBank_left->estimateNbItems());
+
+    /*
+     * Kmer Models
+     */
+    Kmer<128>::ModelCanonical kmerModel (kmerSize);
+    Kmer<128>::ModelCanonical::Iterator kmerItLeft (kmerModel), kmerItRight (kmerModel);
+    cout << "Starting reads traversion"<<endl;
+    for (progress_iter.first(); !progress_iter.isDone(); progress_iter.next())
     {
+        Sequence &s1 = itPair->item().first;
+        Sequence &s2 = itPair->item().second;
+        kmerItLeft.setData(s1.getData());
+        kmerItRight.setData(s2.getData());
         /*
-         * KmerIteration
+         * Traverse kmers
          */
-        Data data ((char*)itSeq->item().toString().c_str());
-        Kmer<256>::ModelDirect model (kmerSize);
-        Kmer<256>::ModelDirect::Iterator it (model);
-        it.setData (data);
-        for (it.first(); !it.isDone(); it.next())
+        kmerItRight.first();
+        for (kmerItLeft.first(); !kmerItLeft.isDone();kmerItLeft.next())
         {
-            //cout << "kmer " << model.toString(it->value()) << ",  value " << it->value() << endl;
-            string query = model.toString(it->value());
-            size_t occs = sdsl::count(fm, query.begin(), query.end());
-            if (occs != 0)
+            string query = "", query2 ="";
+            bool dirLeft = true, dirRight = true;
+            query = kmerModel.toString(kmerItLeft->forward());
+            query2 = kmerModel.toString(kmerItRight->forward());
+            auto locations1 = locate(fm, query.begin(), query.begin()+query.size());
+            if (locations1.size() == 0)
             {
-                auto locations = locate(fm, query.begin(), query.begin()+query.size());
-                sort(locations.begin(), locations.end());
-                for (auto l:locations)
+                query = kmerModel.toString(kmerItLeft->revcomp());
+                locations1 = locate(fm, query.begin(), query.begin()+query.size());
+                dirLeft = false;
+            }
+            if (locations1.size() != 0)
+            {
+                auto locations2 = locate(fm, query2.begin(), query2.begin() + query2.size());
+                if (locations2.size() == 0) {
+                    query2 = kmerModel.toString(kmerItRight->revcomp());
+                    locations2 = locate(fm, query2.begin(), query2.begin() + query2.size());
+                    dirRight = false;
+                }
+                if (locations2.size() != 0)
                 {
-                    size_t remaining = (select(rank(l)+1)-l);
-                    size_t count = 0;
-                    /*
-                     * What ends first? Query or Read
-                     */
-                    while (count++ < remaining && !it.isDone())
-                        it.next();
+                    size_t hit1 = rank(locations1[0]), hit2 = rank(locations2[0]);
+                    size_t remainingUnitigLeft = (dirLeft) ? select(hit1 + 1) - locations1[0] : locations1[0] -((hit1)?
+                                                                                                           select(hit1):hit1)
+                    , remainingUnitigRight = (dirRight) ? select(hit2 + 1) - locations2[0] : locations2[0] -((hit2)?
+                                                                                             select(hit2):hit2);
+                    /*cout << "Query1: " << query << " Query2: " << query2 << " Remaining Unitig1: "
+                         << remainingUnitigLeft << " Remaining Unitig2: " << remainingUnitigRight << endl;*/
+                    if (locations2.size() == 1) {
+                        size_t node1 = rank(locations1[0]), node2 = rank(locations2[0]);
+                        g.addPair(node1, node2);
+                    }
+                    for (size_t i = 0; i < min(remainingUnitigLeft, remainingUnitigRight); ++i)
+                    {
+                        kmerItLeft.next();
+                        cout << kmerModel.toString(kmerItLeft->forward())<<endl;
+                        kmerItRight.next();
+                        if (kmerItLeft.isDone() || kmerItRight.isDone())
+                            break;
+                    }
                 }
             }
+            kmerItRight.next();
+            if (kmerItRight.isDone())
+                break;
         }
     }
     auto end = chrono::steady_clock::now();
@@ -110,22 +154,25 @@ void _traverseReads(char * file,const FMIndex & fm, const RankOnes & rank, const
          << " ms" << endl;
 }
 
-void _buildGraph(char * file)
+DBG _buildGraph(char * file)
 {
     cout << "Build DBG graph from file"<<endl;
+    DBG graph(file);
+    return graph;
 }
 
 int main (int argc, char* argv[])
 {
-    char * unitigs = argv[1], * dolars = argv[2], * file = argv[3], * graphFile = argv[5];
-    size_t kmerSize = atoi(argv[4]);
+    cout << "Params: unitigFile, dolarsFile (placement), leftRead, rightRead, kmerSize, graphFile"<<endl;
+    char * unitigs = argv[1], * dolars = argv[2], * file1 = argv[3], *file2 = argv[4] , * graphFile = argv[6];
+    size_t kmerSize = atoi(argv[5]);
     FMIndex fmIndex;
     bit_vector bDolars;
     RankOnes bDolarRank;
     SelectOnes bDolarSelect;
 
-    _buildGraph(graphFile);
+    DBG g = _buildGraph(graphFile);
     _buildBitMap(bDolars, bDolarRank, bDolarSelect, dolars);
     _buildFmIndex(fmIndex, unitigs);
-    _traverseReads(file, fmIndex,bDolarRank, bDolarSelect, kmerSize);
+    _traverseReads(file1, file2, fmIndex,bDolarRank, bDolarSelect, kmerSize, g);
 }

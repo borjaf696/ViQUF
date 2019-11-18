@@ -28,11 +28,11 @@ lib/utils/%.o: lib/utils/%.cpp lib/utils/*h
 mCodeRelease := src/test-meta.o
 mCodeGatb := src/main.o
 
-all: ${m_main_obj}
-	${CXX} ${mCodeRelease} -o bin/output.out ${LDFLAGS} ${SDSLFLAGS}
+all: ${m_main_obj} ${graphObj}
+	${CXX} ${graphObj} ${mCodeRelease} -o bin/output.out ${LDFLAGS} ${SDSLFLAGS}
 
 meta: ${m_main_obj} ${graphObj}
-	${CXX} ${mCodeRelease} -o bin/meta.out ${LDFLAGS} ${SDSLFLAGS}
+	${CXX} ${graphObj} ${mCodeRelease} -o bin/meta.out ${LDFLAGS} ${SDSLFLAGS}
 
 gatb :${mCodeGatb}
 	${CXX} ${mCodeGatb} -o bin/basic.out ${LDFLAGS} ${SDSLFLAGS}

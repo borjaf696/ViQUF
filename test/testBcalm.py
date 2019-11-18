@@ -35,6 +35,8 @@ class RepresentantGraph:
 
         def exportGraph(self, outputFile):
             with open(outputFile, 'w+') as fWrite:
+                numKeys = len(self._graph.keys())
+                fWrite.write(str(numKeys)+'\n')
                 for key, val in self._graph.items():
                     fWrite.write(str(key)+' ')
                     for v in val:
@@ -76,6 +78,7 @@ class RepresentantGraph:
                     histogram[unitigLength] += 1
                     min = unitigLength if min > unitigLength else min
                     max = unitigLength if max < unitigLength else max
+            print('Number of sequences: ', numSeqs)
             print('Exporting histogram:')
             histogram = histogram[0:max+1]
             UtilsReport.exportHistogram(histogram, 'stats/histogram.html')
@@ -86,10 +89,11 @@ class RepresentantGraph:
         with open(file, 'r') as f:
             for line in f.readlines():
                 if line[0] == 'L':
-                    print('L: ', line)
                     infoLine = line.split('\t')
                     ori, target = int(infoLine[1]) if infoLine[2] == '+' else int(infoLine[1])+numSeqs\
                         , int(infoLine[3]) if infoLine[4] == '+' else int(infoLine[3])+numSeqs
+                    if ori > 2*numSeqs:
+                        print("Ori higher: ", ori)
                     self._g.addEdge(ori, target)
 
 
