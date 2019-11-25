@@ -2,6 +2,9 @@
 #define   UTILS_H
     #include <vector>
     #include <set>
+    #include <queue>
+    #include <unordered_set>
+    #include <unordered_map>
     #include <string>
     #include <fstream>
     #include <sstream>
@@ -191,6 +194,19 @@
         }
     };
     /*
+     * Set Operations
+     */
+    struct SetOp
+    {
+        template<typename T>
+        static T Union(T & s1, T & s2)
+        {
+            T result = s1;
+            result.insert(s2.begin(), s2.end());
+            return result;
+        }
+    };
+    /*
      * Basic Operations
      */
     struct Basics
@@ -216,6 +232,97 @@
      */
     struct Bio
     {
+        template<typename G, typename Vt>
+        priority_queue<pair<size_t,vector<Vt>>> findMaxClique(const G & graph, set<size_t> & idCliques ) {
+            if (!graph.getNumEdges())
+                return std::priority_queue<pair<size_t,vector<Vt>>>();
+            priority_queue<pair<size_t,vector<Vt>>> endCliques;
+            vector<Vt> maxClique;
+            vector<Vt> tmpClique;
+            unordered_set<Vt> already_checked;
+            /*
+             * Sum -> shift id to the left. Example:
+             *      - 0 1 4 -> 1 0 0 1 1 -> 19
+             *      - 0 3 2 -> 1 1 0 0 -> 10
+             * Both cases sum = 5 but id_different. Problem with cliques larger than 64 Nodes.
+             */
+            int64_t sum;
+            size_t min_flow;
+
+            auto findMaxCliqueWithVertex = [&sum, &already_checked, &min_flow](const Vt vertex, const int maxCliqueSize, const G &graph, size_t * score)
+            {
+                vector<Vt> clique;
+                clique.emplace_back(vertex);
+                sum |= 1 << graph[vertex].id;
+
+                set<Vt> candidateNeighbors;
+
+                unordered_set<Vt> visited;
+                visited.emplace(vertex);
+
+                typename G::adjacency_iterator adjVertex, adjVertEnd;
+                for (auto n:graph.getNeighbors(vertex))
+                {
+                    candidateNeighbors.emplace(n);
+                }
+                //Testear
+                // std::vector<Vt> neighbors = graph.getNeighbors(vertex);
+                // for (auto n: neighbors)
+                //      candidateNeighbors.emplace(n);
+
+                set<Vt> tmp;
+
+                while (!candidateNeighbors.empty()) {
+                    /*const auto highestDegNeighborIt = std::max_element(candidateNeighbors.begin(), candidateNeighbors.end(), [graph, store_map](const Vt &lhs, const Vt &rhs) {
+                        if ((store_map.at(lhs)*boost::degree(lhs,graph)) == (store_map.at(rhs)*boost::degree(rhs,graph)))
+                            return graph[lhs].id > graph[rhs].id;
+                        return (store_map.at(lhs)*boost::degree(lhs,graph)) < (store_map.at(rhs)*boost::degree(rhs,graph));
+                    });*/
+                    const auto highestDegNeighborIt = std::max_element(candidateNeighbors.begin(), candidateNeighbors.end(), [graph](const Vt &lhs, const Vt &rhs) {
+                        if ((graph.degree(lhs,graph)) == (graph.degree(rhs,graph)))
+                            return graph[lhs] > graph[rhs];
+                        return (graph.degree(lhs,graph)) < (graph.degree(rhs,graph));
+                    });
+
+                    const auto highestDegVert = *highestDegNeighborIt;
+                    //min_flow = (store_map.at(highestDegVert) < min_flow)?store_map.at(highestDegVert):min_flow;
+                    clique.emplace_back(highestDegVert);
+                    (*score) += store_map.at(highestDegVert);
+                    /*
+                     * Questionable
+                     */
+                    sum |= 1 << graph[highestDegVert];
+                    visited.emplace(highestDegVert);
+
+                    for (auto n: graph.getNeighbors(highestDegVert))
+                    {
+                        if (candidateNeighbors.find(n)!=candidateNeighbors.end() && visited.find(n) == visited.end()) {
+                            tmp.insert(n);
+                        }
+                    }
+                    candidateNeighbors = std::move(tmp);
+                }
+                return clique;
+            };
+            for (size_t vertex; vertex < graph.vertices(); vertex++){
+                sum = 0;
+                min_flow = 0;
+                size_t score = 0;
+                if (already_checked.find(*vertex) == already_checked.end())
+                {
+                    score += store_map.at(*vertex);
+                    tmpClique = findMaxCliqueWithVertex(*vertex, maxClique.size(), graph, store_map, &score);
+                    if ((tmpClique.size() >= CLICK_LIMIT) && (idCliques.find(sum) == idCliques.end())) {
+                        idCliques.emplace(sum);
+                        for (auto c: tmpClique)
+                            store_map[c]-=min_flow;
+                        endCliques.push(pair < size_t, vector < Vt >> (score, tmpClique));
+                    }
+                }
+            }
+            return endCliques;
+        }
+
         static vector<Sequence> readFastq(char * file)
         {
             IBank* inputBank = Bank::open (file);

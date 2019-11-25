@@ -272,7 +272,7 @@ class BioUtils:
             writeFile = outDir+str(i)+'.fasta'
             with open(f,'r') as fRead, open(writeFile,'w+') as fWrite:
                 for j,line in enumerate(fRead.readlines()):
-                    if line[0] == '@':
+                    if j%4 == 0:
                         fWrite.write('>'+str(j/4)+'.'+str(i)+'\n')
                         write = True
                     elif write:

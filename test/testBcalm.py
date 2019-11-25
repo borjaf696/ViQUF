@@ -40,7 +40,7 @@ class RepresentantGraph:
                 for key, val in self._graph.items():
                     fWrite.write(str(key)+' ')
                     for v in val:
-                        fWrite.write(str(v)+',')
+                        fWrite.write(str(v)+' ')
                     fWrite.write('\n')
 
     def __init__(self, path = None, kmerSize = 30, abundanceMin = 1):
@@ -105,6 +105,7 @@ if __name__=='__main__':
         Utils.mkdir(tmpDir)
         suffix = 'Ownlatest/'
         files, outputFile = Utils.get_files(path,['fastq']), tmpDir+suffix+'append.fasta'
+        files.sort()
         print('Files: ', files)
         newFiles = BioUtils.renameFastqSeqs(files, tmpDir)
         print('NewFiles: ', newFiles)
@@ -118,6 +119,7 @@ if __name__=='__main__':
 
     pathIn = __preprocess(sys.argv[1])
     path, kmerSize, abundanceMin = pathIn[0], sys.argv[2], sys.argv[3]
+    print('Path: ', path)
     rG = RepresentantGraph(path, kmerSize, abundanceMin)
 
-    BioUtils.identicalClustering(__preprocess2([pathIn[1],rG.getOutFile()]))
+    #BioUtils.identicalClustering(__preprocess2([pathIn[1],rG.getOutFile()]))
