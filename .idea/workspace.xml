@@ -26,8 +26,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/main.cpp">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="4752">
-              <caret line="1180" column="9" lean-forward="true" selection-start-line="1180" selection-start-column="9" selection-end-line="1180" selection-end-column="9" />
+            <state relative-caret-position="4122">
+              <caret line="1180" column="9" selection-start-line="1180" selection-start-column="9" selection-end-line="1180" selection-end-column="9" />
             </state>
           </provider>
         </entry>
@@ -35,8 +35,8 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/lib/graph/graph.cpp">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="457">
-              <caret line="285" column="25" selection-start-line="285" selection-start-column="25" selection-end-line="285" selection-end-column="25" />
+            <state relative-caret-position="615">
+              <caret line="53" column="12" selection-start-line="53" selection-start-column="12" selection-end-line="53" selection-end-column="12" />
             </state>
           </provider>
         </entry>
@@ -118,7 +118,7 @@
         <entry file="file://$PROJECT_DIR$/Makefile">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="105">
-              <caret line="7" column="20" lean-forward="true" selection-start-line="7" selection-start-column="20" selection-end-line="7" selection-end-column="20" />
+              <caret line="7" column="20" selection-start-line="7" selection-start-column="20" selection-end-line="7" selection-end-column="20" />
             </state>
           </provider>
         </entry>
@@ -126,11 +126,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/test-meta.cpp">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="3187">
-              <caret line="304" column="76" selection-start-line="304" selection-start-column="76" selection-end-line="304" selection-end-column="76" />
-              <folding>
-                <element signature="e#8299#12496#0" />
-              </folding>
+            <state relative-caret-position="352">
+              <caret line="310" column="19" lean-forward="true" selection-start-line="310" selection-start-column="19" selection-end-line="310" selection-end-column="19" />
             </state>
           </provider>
         </entry>
@@ -167,7 +164,6 @@
       <find>append_files</find>
       <find>model</find>
       <find>split</find>
-      <find>_addPairedInfo</find>
       <find>total</find>
       <find>min_flow</find>
       <find>vi</find>
@@ -176,6 +172,7 @@
       <find>Node_t</find>
       <find>ren</find>
       <find>already_checked</find>
+      <find>_addPairedInfo</find>
     </findStrings>
     <replaceStrings>
       <replace>set</replace>
@@ -198,8 +195,9 @@
         <option value="$PROJECT_DIR$/test/testBcalm.py" />
         <option value="$PROJECT_DIR$/lib/utils/utils.h" />
         <option value="$PROJECT_DIR$/Todo" />
-        <option value="$PROJECT_DIR$/src/test-meta.cpp" />
         <option value="$PROJECT_DIR$/lib/graph/graph.h" />
+        <option value="$PROJECT_DIR$/src/test-meta.cpp" />
+        <option value="$PROJECT_DIR$/command_example" />
         <option value="$PROJECT_DIR$/lib/graph/graph.cpp" />
       </list>
     </option>
@@ -371,20 +369,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/Makefile">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="105">
-          <caret line="7" column="20" lean-forward="true" selection-start-line="7" selection-start-column="20" selection-end-line="7" selection-end-column="20" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/main.cpp">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="4752">
-          <caret line="1180" column="9" lean-forward="true" selection-start-line="1180" selection-start-column="9" selection-end-line="1180" selection-end-column="9" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/test/testBcalm.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="262">
@@ -403,16 +387,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="585">
           <caret line="180" column="18" selection-start-line="180" selection-start-column="18" selection-end-line="180" selection-end-column="18" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/test-meta.cpp">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="3187">
-          <caret line="304" column="76" selection-start-line="304" selection-start-column="76" selection-end-line="304" selection-end-column="76" />
-          <folding>
-            <element signature="e#8299#12496#0" />
-          </folding>
         </state>
       </provider>
     </entry>
@@ -447,10 +421,38 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/src/main.cpp">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="4122">
+          <caret line="1180" column="9" selection-start-line="1180" selection-start-column="9" selection-end-line="1180" selection-end-column="9" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/command_example">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <caret column="96" selection-start-column="96" selection-end-column="96" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/Makefile">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="105">
+          <caret line="7" column="20" selection-start-line="7" selection-start-column="20" selection-end-line="7" selection-end-column="20" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/test-meta.cpp">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="352">
+          <caret line="310" column="19" lean-forward="true" selection-start-line="310" selection-start-column="19" selection-end-line="310" selection-end-column="19" />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/lib/graph/graph.cpp">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="457">
-          <caret line="285" column="25" selection-start-line="285" selection-start-column="25" selection-end-line="285" selection-end-column="25" />
+        <state relative-caret-position="615">
+          <caret line="53" column="12" selection-start-line="53" selection-start-column="12" selection-end-line="53" selection-end-column="12" />
         </state>
       </provider>
     </entry>

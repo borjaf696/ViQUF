@@ -276,7 +276,7 @@ void _traverseReads(char * file_left, char * file_right ,const FMIndex & fm, con
                         g.addPair(node1, node2);
                     }
                     //Adjust this part
-                    /*if (max(l1,l2) < min(remainingUnitigLeft, remainingUnitigRight))
+                    if (max(l1,l2) < min(remainingUnitigLeft, remainingUnitigRight))
                         break;
                     for (size_t i = 0; i < min(remainingUnitigLeft, remainingUnitigRight); ++i)
                     {
@@ -286,7 +286,7 @@ void _traverseReads(char * file_left, char * file_right ,const FMIndex & fm, con
                         l1--;l2--;
                         if (kmerItLeft.isDone() || kmerItRight.isDone())
                             break;
-                    }*/
+                    }
                 }
             }
             kmerItRight.next();

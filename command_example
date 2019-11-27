@@ -1,0 +1,2 @@
+screen -L -Logfile BCAMLTest.log python test/testBcalm.py ../Datasets/HelsinkiMeta/ToyTest/ 13 1
+screen -L -Logfile execution3.log ./bin/output.out tmp/unitigs.FM placements ../Datasets/HelsinkiMeta/ToyTest/read1.fastq ../Datasets/HelsinkiMeta/ToyTest/read2.fastq 13 tmp/unitigs.graph
