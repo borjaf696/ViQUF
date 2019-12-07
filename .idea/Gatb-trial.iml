@@ -2,7 +2,7 @@
 <module type="CPP_MODULE" version="4">
   <component name="FacetManager">
     <facet type="Python" name="Python facet">
-      <configuration sdkName="Python 3.6 (Gatb-trial)" />
+      <configuration sdkName="" />
     </facet>
   </component>
   <component name="NewModuleRootManager">
@@ -11,6 +11,5 @@
     </content>
     <orderEntry type="jdk" jdkName="Python 3.6 (Gatb-trial)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="Python 3.6 (Gatb-trial) interpreter library" level="application" />
   </component>
 </module>

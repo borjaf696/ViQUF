@@ -16,12 +16,19 @@
 #ifndef GATB_TRIAL_GRAPH_H
     #include "../lib/graph/graph.h"
 #endif
+
+#define SPAN 128
 using namespace std;
 using namespace sdsl;
 
 typedef csa_wt<wt_huff<rrr_vector<127> >, 512, 1024> FMIndex;
 typedef rank_support_v<1> RankOnes;
 typedef select_support_mcl<1> SelectOnes;
+struct stored_info
+{
+    stored_info(size_t left,size_t right):_fw_length(left), _rc_length(right){}
+    size_t _fw_length, _rc_length;
+};
 
 void _buildFmIndex(FMIndex & fm, char * unitigs)
 {
@@ -70,6 +77,14 @@ void _buildBitMap(bit_vector & bDolars, RankOnes & bDolarRank, SelectOnes  & bDo
 }
 
 /*
+ * Hash version
+ */
+
+void _buildHash(unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_map, char * unitigs)
+{
+
+}
+/*
  * Traversion
  */
 void _traverseReadsFR(char * file_left, char * file_right ,const FMIndex & fm, const RankOnes & rank,
@@ -89,8 +104,8 @@ void _traverseReadsFR(char * file_left, char * file_right ,const FMIndex & fm, c
     /*
      * Kmer Models
      */
-    Kmer<128>::ModelCanonical kmerModel (kmerSize);
-    Kmer<128>::ModelCanonical::Iterator kmerItLeft (kmerModel), kmerItRight (kmerModel);
+    Kmer<SPAN>::ModelCanonical kmerModel (kmerSize);
+    Kmer<SPAN>::ModelCanonical::Iterator kmerItLeft (kmerModel), kmerItRight (kmerModel);
     cout << "Starting reads traversion"<<endl;
     for (progress_iter.first(); !progress_iter.isDone(); progress_iter.next())
     {
@@ -140,8 +155,8 @@ void _traverseReadsL(char * file_left, char * file_right ,const FMIndex & fm, co
     /*
      * Kmer Models
      */
-    Kmer<128>::ModelCanonical kmerModel (kmerSize);
-    Kmer<128>::ModelCanonical::Iterator kmerItLeft (kmerModel), kmerItRight (kmerModel);
+    Kmer<SPAN>::ModelCanonical kmerModel (kmerSize);
+    Kmer<SPAN>::ModelCanonical::Iterator kmerItLeft (kmerModel), kmerItRight (kmerModel);
     cout << "Starting reads traversion"<<endl;
     for (progress_iter.first(); !progress_iter.isDone(); progress_iter.next())
     {
@@ -226,8 +241,8 @@ void _traverseReads(char * file_left, char * file_right ,const FMIndex & fm, con
     /*
      * Kmer Models
      */
-    Kmer<128>::ModelCanonical kmerModel (kmerSize);
-    Kmer<128>::ModelCanonical::Iterator kmerItLeft (kmerModel), kmerItRight (kmerModel);
+    Kmer<SPAN>::ModelCanonical kmerModel (kmerSize);
+    Kmer<SPAN>::ModelCanonical::Iterator kmerItLeft (kmerModel), kmerItRight (kmerModel);
     cout << "Starting reads traversion"<<endl;
     for (progress_iter.first(); !progress_iter.isDone(); progress_iter.next())
     {
@@ -270,7 +285,7 @@ void _traverseReads(char * file_left, char * file_right ,const FMIndex & fm, con
                     , remainingUnitigRight = (dirRight) ? select(hit2 + 1) - locations2[0] - (kmerSize-1)
                             : locations2[0] -((hit2)? select(hit2):hit2);
                     /*cout << "Query1: " << query << " Query2: " << query2 << " Remaining Unitig1: "
-                         << remainingUnitigLeft << " Remaining Unitig2: " << remainingUnitigRight << endl;*/
+                         << remainingUnitigLeft << " Remaining Unitig2: " << remainingUnitigRight << " "<<rank(locations1[0])<<" "<<rank(locations2[0])<<endl;*/
                     if (locations2.size() == 1) {
                         size_t node1 = rank(locations1[0]), node2 = rank(locations2[0]);
                         g.addPair(node1, node2);
@@ -278,7 +293,7 @@ void _traverseReads(char * file_left, char * file_right ,const FMIndex & fm, con
                     //Adjust this part
                     if (max(l1,l2) < min(remainingUnitigLeft, remainingUnitigRight))
                         break;
-                    for (size_t i = 0; i < min(remainingUnitigLeft, remainingUnitigRight); ++i)
+                    for (size_t i = 0; i < min(remainingUnitigLeft, remainingUnitigRight)-1; ++i)
                     {
                         kmerItLeft.next();
                         //cout << kmerModel.toString(kmerItLeft->forward())<<endl;
@@ -303,6 +318,8 @@ void _traverseReads(char * file_left, char * file_right ,const FMIndex & fm, con
 void _build_process_cliques(DBG & g)
 {
     cout << "Processing cliques from DBG... This will take a while!" <<endl;
+    DBG apdbg;
+    g.build_process_cliques(apdbg);
 }
 
 DBG _buildGraph(char * file)
@@ -314,17 +331,25 @@ DBG _buildGraph(char * file)
 
 int main (int argc, char* argv[])
 {
-    cout << "Params: unitigFile, dolarsFile (placement), leftRead, rightRead, kmerSize, graphFile"<<endl;
-    char * unitigs = argv[1], * dolars = argv[2], * file1 = argv[3], *file2 = argv[4] , * graphFile = argv[6];
+    cout << "Params: unitigFile, dolarsFile (placement), leftRead, rightRead, kmerSize, graphFile, unitigsFasta"<<endl;
+    char * unitigs = argv[1], * dolars = argv[2], * file1 = argv[3], *file2 = argv[4] , * graphFile = argv[6], * unitigsFa = argv[7];
     size_t kmerSize = atoi(argv[5]);
     FMIndex fmIndex;
+    unordered_map<Kmer<SPAN>::Type,stored_info> kmer_map;
     bit_vector bDolars;
     RankOnes bDolarRank;
     SelectOnes bDolarSelect;
 
     DBG g = _buildGraph(graphFile);
+    /*
+     * FM_Index version - V.0.0.1
+     */
     _buildBitMap(bDolars, bDolarRank, bDolarSelect, dolars);
     _buildFmIndex(fmIndex, unitigs);
+    /*
+     * Hash version - V.0.0.2
+     */
+    _buildHash(kmer_map, unitigsFa);
     //_traverseReadsFR(file1, file2, fmIndex,bDolarRank, bDolarSelect, kmerSize, g);
     //_traverseReadsL(file1, file2, fmIndex,bDolarRank, bDolarSelect, kmerSize, g);
     _traverseReads(file1, file2, fmIndex,bDolarRank, bDolarSelect, kmerSize, g);
