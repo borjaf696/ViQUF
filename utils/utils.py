@@ -113,6 +113,7 @@ class Utils:
         :param path: LIST of args
         :return:
         '''
+        print(args)
         if out is None:
             subprocess.call(args)
         else:

@@ -75,6 +75,8 @@ class RepresentantGraph:
                     unitigLength, pivote = len(dnaSeq), int(len(dnaSeq)/2)
                     self.seqs.append(Seq(dnaSeq[pivote:pivote+self._kmerSize], generic_dna))
                     numSeqs += 1
+                    if unitigLength > len(histogram):
+                        histogram = histogram + [0]*(unitigLength - len(histogram) + 1)
                     histogram[unitigLength] += 1
                     min = unitigLength if min > unitigLength else min
                     max = unitigLength if max < unitigLength else max
@@ -96,15 +98,20 @@ class RepresentantGraph:
                         print("Ori higher: ", ori)
                     self._g.addEdge(ori, target)
 
-
 if __name__=='__main__':
     print('Lets do this')
-    tmpDir = 'tmp/'
+    tmpDir, resDir = 'tmp/', 'tmpresultsDir/'
     readFiles = []
     def __preprocess(path):
+        Utils.mkdir(resDir)
+        files = Utils.get_files(path, ['fastq'])
+        files.sort()
+        print('Files: ', files)
+        cmd = ['karect','-correct','-matchtype=hamming','-celltype=haploid','-resultdir='+resDir]+['-inputfile='+t for t in files]
+        Utils.executecmd(cmd)
         Utils.mkdir(tmpDir)
         suffix = 'Ownlatest/'
-        files, outputFile = Utils.get_files(path,['fastq']), tmpDir+suffix+'append.fasta'
+        files, outputFile = Utils.get_files(resDir,['fastq']), tmpDir+suffix+'append.fasta'
         files.sort()
         print('Files: ', files)
         newFiles = BioUtils.renameFastqSeqs(files, tmpDir)

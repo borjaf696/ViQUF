@@ -18,6 +18,9 @@
 #endif
 
 #define SPAN 128
+#define ILLUMINA true
+#define VERSION 2
+
 using namespace std;
 using namespace sdsl;
 
@@ -26,8 +29,16 @@ typedef rank_support_v<1> RankOnes;
 typedef select_support_mcl<1> SelectOnes;
 struct stored_info
 {
-    stored_info(size_t left,size_t right):_fw_length(left), _rc_length(right){}
-    size_t _fw_length, _rc_length;
+    stored_info(){}
+    stored_info(size_t left,size_t right, size_t unitig):_pos(left), _remaining(right), _unitig(unitig){}
+    stored_info& operator=(const stored_info & info)
+    {
+        _pos = info._pos;
+        _remaining = info._remaining;
+        _unitig = info._unitig;
+        return *this;
+    }
+    size_t _pos, _remaining, _unitig = 0;
 };
 
 void _buildFmIndex(FMIndex & fm, char * unitigs)
@@ -80,9 +91,115 @@ void _buildBitMap(bit_vector & bDolars, RankOnes & bDolarRank, SelectOnes  & bDo
  * Hash version
  */
 
-void _buildHash(unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_map, char * unitigs)
+void _buildHash(unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_map,
+        char * unitigs, size_t total_unitigs, size_t kmerSize
+        ,unordered_map<size_t, Sequence> & sequence_map)
 {
+    cout << "Building hash..."<<endl;
+    auto start = chrono::steady_clock::now();
+    size_t num_unitig = 0;
+    /*
+     * Sequence Iterator
+     */
+    IBank* inputBank = Bank::open (unitigs);
+    ProgressIterator<Sequence> it (*inputBank, "Iterating sequences");
+    /*
+     * Kmer models
+     */
+    Kmer<SPAN>::ModelCanonical kmerModel (kmerSize);
+    Kmer<SPAN>::ModelCanonical::Iterator kmerIt (kmerModel);
+    for (it.first(); !it.isDone(); it.next())
+    {
+        Sequence& seq = it.item();
+        size_t l = seq.getDataSize(), pos = 0;
+        kmerIt.setData(seq.getData());
+        for (kmerIt.first(); !kmerIt.isDone();kmerIt.next())
+        {
+            kmer_map[kmerIt->forward()] = stored_info(pos, l-pos-1, num_unitig);
+            kmer_map[kmerIt->revcomp()] = stored_info(l-pos-1, pos, total_unitigs/2 + num_unitig);
+            pos++;
+        }
+        sequence_map[num_unitig] = seq;
+        num_unitig++;
+    }
+    cout <<"Number of unitigs: "<<num_unitig<<endl;
+    auto end = chrono::steady_clock::now();
+    cout << "Elapsed time in milliseconds (FULL) : "
+         << chrono::duration_cast<chrono::milliseconds>(end - start).count()
+         << " ms" << endl;
+}
+/*
+ * Traversion alternative
+ */
+void _traverseReadsHash(char * file_left, char * file_right
+        ,const unordered_map<Kmer<SPAN>::Type,stored_info> kmer_map
+        ,size_t kmerSize, DBG & g)
+{
+    cout << "Traversing reads!"<< endl;
+    auto start = chrono::steady_clock::now();
+    /*
+     * Paired_end input banks
+     */
+    IBank* inputBank_left = Bank::open (file_left);
+    IBank* inputBank_right = Bank::open(file_right);
 
+    PairedIterator <Sequence> *itPair = new PairedIterator<Sequence>(inputBank_left->iterator(), inputBank_right->iterator());
+    ProgressIterator <std::pair<Sequence, Sequence>> progress_iter(itPair, "paired-end", inputBank_left->estimateNbItems());
+    /*
+     * Kmer Models
+     */
+    Kmer<SPAN>::ModelCanonical kmerModel (kmerSize);
+    Kmer<SPAN>::ModelCanonical::Iterator kmerItLeft (kmerModel), kmerItRight (kmerModel);
+    cout << "Starting reads traversion"<<endl;
+    for (progress_iter.first(); !progress_iter.isDone(); progress_iter.next()) {
+        Sequence &s1 = itPair->item().first;
+        Sequence &s2 = itPair->item().second;
+        size_t l1 = s1.getDataSize(), l2 = s2.getDataSize();
+        kmerItLeft.setData(s1.getData());
+        kmerItRight.setData(s2.getData());
+        /*
+         * Traverse kmers
+         */
+        kmerItRight.first();
+        for (kmerItLeft.first(); !kmerItLeft.isDone(); kmerItLeft.next())
+        {
+            l1--;l2--;
+            bool forward = true;
+            unordered_map<Kmer<SPAN>::Type, stored_info>::const_iterator map_iterator_left = kmer_map.find(kmerItLeft->forward())
+                    , map_iterator_right;
+            if (map_iterator_left == kmer_map.end())
+            {
+                forward = false;
+                map_iterator_left = kmer_map.find(kmerItLeft->revcomp());
+            }
+            if (map_iterator_left != kmer_map.end())
+            {
+                map_iterator_right = (forward)?kmer_map.find(kmerItRight->revcomp()):kmer_map.find(kmerItRight->forward());
+                if (map_iterator_right != kmer_map.end())
+                {
+                    size_t unitig_left = (*map_iterator_left).second._unitig
+                            ,unitig_right = (*map_iterator_right).second._unitig;
+                    size_t remaining_unitig_left = (*map_iterator_left).second._remaining
+                            ,remaining_unitig_right = (*map_iterator_right).second._remaining;
+                    g.addPair(unitig_left, unitig_right);
+                    if (max(l1,l2) < min(remaining_unitig_left, remaining_unitig_right))
+                        break;
+                    for (size_t i = 0; i < min(remaining_unitig_left, remaining_unitig_right)-1; ++i)
+                    {
+                        kmerItLeft.next();
+                        //cout << kmerModel.toString(kmerItLeft->forward())<<endl;
+                        kmerItRight.next();
+                        l1--;l2--;
+                        if (kmerItLeft.isDone() || kmerItRight.isDone())
+                            break;
+                    }
+                }
+            }
+            kmerItRight.next();
+            if (kmerItRight.isDone())
+                break;
+        }
+    }
 }
 /*
  * Traversion
@@ -315,11 +432,46 @@ void _traverseReads(char * file_left, char * file_right ,const FMIndex & fm, con
          << " ms" << endl;
 }
 
-void _build_process_cliques(DBG & g)
+/*
+ * Reporting
+ */
+void _write_unitigs(vector<vector<size_t>> unitigs
+        , char * write_path, const unordered_map<size_t, Sequence> & sequence_map
+        , size_t num_unitigs_fw)
+{
+    cout << "Writing unitigs"<<endl;
+    size_t num_unitigs = 0;
+    ofstream outputFile(write_path);
+    for (auto unitig:unitigs)
+    {
+        outputFile << ">"<<num_unitigs++<<endl;
+        for (auto u:unitig)
+        {
+            bool reverse = false;
+            if (u >= (num_unitigs_fw/2))
+            {
+                u -= (num_unitigs_fw/2);
+                reverse = true;
+            }
+            Sequence seq = sequence_map.at(u);
+            cout << "Reverse:"<<endl;
+            cout << seq.toString()<<endl;
+            //outputFile << ((reverse)?seq.getRevcomp():seq.toString())<<endl;
+            outputFile << seq.toString()<<endl;
+        }
+    }
+    cout << "End!"<< endl;
+    outputFile.close();
+}
+
+
+void _build_process_cliques(DBG & g, const unordered_map<size_t, Sequence> & sequence_map, char * write_path)
 {
     cout << "Processing cliques from DBG... This will take a while!" <<endl;
     DBG apdbg;
     g.build_process_cliques(apdbg);
+    vector<vector<size_t>> unitigs = apdbg.export_unitigs();
+    _write_unitigs(unitigs, write_path, sequence_map, g.vertices());
 }
 
 DBG _buildGraph(char * file)
@@ -331,28 +483,38 @@ DBG _buildGraph(char * file)
 
 int main (int argc, char* argv[])
 {
-    cout << "Params: unitigFile, dolarsFile (placement), leftRead, rightRead, kmerSize, graphFile, unitigsFasta"<<endl;
-    char * unitigs = argv[1], * dolars = argv[2], * file1 = argv[3], *file2 = argv[4] , * graphFile = argv[6], * unitigsFa = argv[7];
+    cout << "Params: unitigFile, dolarsFile (placement), leftRead, rightRead, kmerSize, graphFile, unitigsFasta, unitigsfile"<<endl;
+    char * unitigs = argv[1], * dolars = argv[2], * file1 = argv[3]
+            , *file2 = argv[4] , * graphFile = argv[6], * unitigsFa = argv[7], * unitigs_file = argv[8];
     size_t kmerSize = atoi(argv[5]);
     FMIndex fmIndex;
     unordered_map<Kmer<SPAN>::Type,stored_info> kmer_map;
     bit_vector bDolars;
     RankOnes bDolarRank;
     SelectOnes bDolarSelect;
+    /*
+     * Trial
+     */
+    unordered_map<size_t, Sequence> sequence_map;
 
     DBG g = _buildGraph(graphFile);
-    /*
-     * FM_Index version - V.0.0.1
-     */
-    _buildBitMap(bDolars, bDolarRank, bDolarSelect, dolars);
-    _buildFmIndex(fmIndex, unitigs);
-    /*
-     * Hash version - V.0.0.2
-     */
-    _buildHash(kmer_map, unitigsFa);
-    //_traverseReadsFR(file1, file2, fmIndex,bDolarRank, bDolarSelect, kmerSize, g);
-    //_traverseReadsL(file1, file2, fmIndex,bDolarRank, bDolarSelect, kmerSize, g);
-    _traverseReads(file1, file2, fmIndex,bDolarRank, bDolarSelect, kmerSize, g);
-    _build_process_cliques(g);
-    g.print();
+    if (VERSION == 1)
+    {
+        /*
+         * FM_Index version - V.0.0.1
+         */
+        _buildBitMap(bDolars, bDolarRank, bDolarSelect, dolars);
+        _buildFmIndex(fmIndex, unitigs);
+        //_traverseReadsFR(file1, file2, fmIndex,bDolarRank, bDolarSelect, kmerSize, g);
+        //_traverseReadsL(file1, file2, fmIndex,bDolarRank, bDolarSelect, kmerSize, g);
+        _traverseReads(file1, file2, fmIndex,bDolarRank, bDolarSelect, kmerSize, g);
+    } else {
+        /*
+         * Hash version - V.0.0.2
+         */
+        _buildHash(kmer_map, unitigsFa, g.vertices(), kmerSize, sequence_map);
+        _traverseReadsHash(file1, file2, kmer_map, kmerSize, g);
+        _build_process_cliques(g, sequence_map, unitigs_file);
+    }
+    //g.print();
 }

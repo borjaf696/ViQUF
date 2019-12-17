@@ -49,6 +49,7 @@ DBG::DBG(char * file):_numedges(0)
             iss >> _num_nodes;
             cout << "Number of nodes: "<<_num_nodes<<endl;
             _g_edges = vector<vector<OwnNode_t>>(_num_nodes, vector<size_t>());
+            _g_in_edges = vector<vector<OwnNode_t>>(_num_nodes, vector<size_t>());
             _reachability = vector<unordered_set<size_t>>(_num_nodes, unordered_set<size_t>());
             _num_nodes = 0;
         }else {
@@ -70,6 +71,7 @@ DBG::DBG(char * file):_numedges(0)
                     iss = istringstream(s);
                     iss >> neighbor;
                     _g_edges[node].push_back(neighbor);
+                    _g_in_edges[neighbor].push_back(node);
                 }
             }
         }
@@ -122,19 +124,38 @@ size_t DBG::addPair(size_t v, Pairedendinformation_t pairInformation)
 
 void DBG::build_process_cliques(DBG & apdbg)
 {
-    for (size_t i = 0; i < _num_nodes; ++i)
+    bool show = true;
+    OwnNode_t node_test = 226433;
+    for (size_t i = 0; i < _num_nodes-1; ++i)
     {
-        if (_g_nodes[i].get_paired_information().empty()) {
-            //Insertar nodo
+        show = (_g_nodes[i]._val == node_test);
+        Pairedendinformation_t node_pei = getPairedEndInformation(i);
+        UG_Node parent(_g_nodes[i]._val, node_pei);
+        if (show)
+            cout << "Size Node (paired-end): " << node_pei.size() << " Neighbors: " << getNeighbor(i).size() << endl;
+        vector<OwnNode_t> neighbors = getNeighbor(i);
+        if (neighbors.size() == 0) {
+            apdbg.addNode(parent, show);
+        }
+        if (node_pei.empty()) {
+            for (auto n: neighbors)
+            {
+                UG_Node son(_g_nodes[n]._val, getPairedEndInformation(n));
+                apdbg.addNode(parent, son);
+            }
             continue;
         }
-        for (auto n: getNeighbor(i))
+        for (auto n: neighbors)
         {
+            show = (_g_nodes[n]._val == node_test);
+            Pairedendinformation_t neigh_pei = getPairedEndInformation(n);
+            if (show)
+                cout << "Size (paired-end): "<<neigh_pei.size()<<endl;
             if (_g_nodes[n].get_paired_information().empty()) {
-                //Insertar nodo
+                UG_Node son(_g_nodes[n]._val, getPairedEndInformation(n));
+                apdbg.addNode(parent, son);
                 continue;
             }
-            Pairedendinformation_t node_pei = getPairedEndInformation(i), neigh_pei = getPairedEndInformation(n);
             Pairedendinformation_t union_pei;
             set_union(node_pei.begin(), node_pei.end(),
                     neigh_pei.begin(), neigh_pei.end(),
@@ -151,50 +172,113 @@ void DBG::build_process_cliques(DBG & apdbg)
                         local_graph.addEdge(traslation_map[pn],traslation_map[tn]);
                 }
             }
-            local_graph.print();
+            if (show)
+                local_graph.print();
             priority_queue<pair<size_t,vector<OwnNode_t>>> cliques = local_graph.report_maximal_cliques();
             unordered_set<OwnNode_t> nodes_checked;
-            cout << " Cliques size: "<<cliques.size()<<endl;
+            if (show)
+                cout << " Cliques size: "<<cliques.size()<<endl;
             while (!cliques.empty() && nodes_checked.size() < union_pei.size())
             {
                 pair <size_t, vector<OwnNode_t>> top_click = cliques.top();
                 cliques.pop();
                 Pairedendinformation_t clique, p_info_a, p_info_b;
                 bool in_a = false, in_b = false;
-                cout << endl;
+                //cout << endl;
                 for (auto node: top_click.second)
                 {
                     nodes_checked.emplace(node);
-                    clique.emplace(node);
-                    cout << node << " ";
-                    if (node_pei.find(local_graph[node]._val) != node_pei.end()) {
+                    UG::UG_Node real_node = local_graph[node];
+                    clique.emplace(real_node._val);
+                    //cout << node << " ";
+                    if (node_pei.find(real_node._val) != node_pei.end()) {
                         in_a = true;
-                        p_info_a.emplace(node);
+                        p_info_a.emplace(real_node._val);
                     }
-                    if (neigh_pei.find(local_graph[node]._val) != neigh_pei.end()) {
+                    if (neigh_pei.find(real_node._val) != neigh_pei.end()) {
                         in_b = true;
-                        p_info_b.emplace(node);
+                        p_info_b.emplace(real_node._val);
                     }
                 }
-                cout << endl;
+                //cout << endl;
                 if (in_a && in_b)
                 {
-                    UG_Node parent(_g_nodes[i]._val, p_info_a), son(_g_nodes[n]._val,p_info_b);
-                    apdbg.addNode(parent, son);
+                    UG_Node parent_l(_g_nodes[i]._val, p_info_a), son_l(_g_nodes[n]._val,p_info_b);
+                    apdbg.addNode(parent_l, son_l);
                 }
             }
         }
     }
 }
+
+size_t DBG::out_degree(OwnNode_t node_id)
+{
+    return _g_edges[node_id].size();
+}
+
+size_t DBG::in_degree(OwnNode_t node_id)
+{
+    return _g_in_edges[node_id].size();
+}
+
 vector<vector<OwnNode_t>> DBG::export_unitigs()
 {
     vector<vector<OwnNode_t>> unitigs;
+    vector<UG_Node> starting_points = _get_starting_nodes();
+    queue<UG_Node> extensible_points;
+    vector<bool> checked(_g_nodes.size(), false);
+    for (auto i: starting_points) {
+        extensible_points.push(i);
+    }
+    cout << "Retrieving unitigs"<<endl;
+    while(!extensible_points.empty())
+    {
+        UG_Node node = extensible_points.front();
+        extensible_points.pop();
+        vector<OwnNode_t> current_unitig;
+        _extension(extensible_points, checked, current_unitig, node);
+        unitigs.push_back(current_unitig);
+    }
     return unitigs;
 }
 
 /*
  * Private
  */
+void DBG::_extension(queue <UG_Node> & queue, vector<bool> & checked, vector <OwnNode_t> & unitig, UG_Node node)
+{
+    checked[node._id] = true;
+    unitig.push_back(_g_nodes[node._id]._val);
+    vector<OwnNode_t> neighs = getNeighbor(node._id);
+    while (neighs.size() == 1)
+    {
+        if (in_degree(neighs[0]) == 1) {
+            unitig.push_back(_g_nodes[neighs[0]]._val);
+            neighs = getNeighbor(neighs[0]);
+        } else
+            break;
+    }
+    if (neighs.size() == 0)
+        return;
+    if (neighs.size() > 1 || in_degree(neighs[0]) > 1)
+    {
+        for (auto i: neighs)
+        {
+            if (!checked[i])
+                queue.push(_g_nodes[i]);
+        }
+    }
+}
+vector<DBG::UG_Node> DBG::_get_starting_nodes()
+{
+    vector<UG_Node> suspicious_nodes;
+    for (auto i: _g_nodes)
+    {
+        if (!in_degree(i._id))
+            suspicious_nodes.push_back(i);
+    }
+    return suspicious_nodes;
+}
 bool DBG::_reach(OwnNode_t i, OwnNode_t j)
 {
     return (_reachability[i].find(j) != _reachability[i].end()) || (_reachability[j].find(i) != _reachability[j].end());

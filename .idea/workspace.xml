@@ -10,11 +10,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="4458d666-b6f4-4905-bf09-67ebaea7f54d" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/Gatb-trial.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/Gatb-trial.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/graph/graph.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/lib/graph/graph.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/graph/graph.h" beforeDir="false" afterPath="$PROJECT_DIR$/lib/graph/graph.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/test-meta.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-meta.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test/testBcalm.py" beforeDir="false" afterPath="$PROJECT_DIR$/test/testBcalm.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/utils.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -40,9 +41,20 @@
     <option name="width" value="1400" />
     <option name="height" value="967" />
   </component>
+  <component name="ProjectId" id="1Uj5RROTT9hRqCGyxShwWdjQ4Zh" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showExcludedFiles" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
   <component name="PropertiesComponent">
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/third-party/utils" />
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+    <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../viaDBG" />
+    <property name="node.js.detected.package.eslint" value="true" />
+    <property name="node.js.path.for.package.eslint" value="project" />
     <property name="node.js.path.for.package.tslint" value="project" />
+    <property name="node.js.selected.package.eslint" value="(autodetect)" />
     <property name="node.js.selected.package.tslint" value="(autodetect)" />
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
@@ -77,10 +89,24 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1562096141021</updated>
+      <workItem from="1575857175551" duration="15335000" />
+      <workItem from="1576205810651" duration="2106000" />
+      <workItem from="1576367336222" duration="22932000" />
     </task>
     <servers />
   </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="1" />
+  </component>
   <component name="WindowStateProjectService">
+    <state x="776" y="245" width="424" height="484" key="FileChooserDialogImpl" timestamp="1576286388309">
+      <screen x="67" y="27" width="1853" height="923" />
+    </state>
+    <state x="776" y="245" width="424" height="484" key="FileChooserDialogImpl/67.27.1853.923@67.27.1853.923" timestamp="1576286388309" />
+    <state x="649" y="315" key="com.intellij.ide.util.TipDialog" timestamp="1576284458959">
+      <screen x="67" y="27" width="1853" height="923" />
+    </state>
+    <state x="649" y="315" key="com.intellij.ide.util.TipDialog/67.27.1853.923@67.27.1853.923" timestamp="1576284458959" />
     <state x="656" y="225" width="672" height="678" key="search.everywhere.popup" timestamp="1575336457411">
       <screen x="67" y="27" width="1853" height="923" />
     </state>

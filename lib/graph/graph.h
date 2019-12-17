@@ -188,6 +188,35 @@ public:
     /*
      * Methods modify graph
      */
+    void addNode(UG_Node node, bool show = false)
+    {
+        vector<OwnNode_t> index_1 = _get_posible_pos(node._val);
+        OwnNode_t i_1 = NO_NEIGH;
+        /*
+         * Check index positions
+         */
+        for (auto i: index_1)
+        {
+            if (_g_nodes[i] == node)
+            {
+                i_1 = i;
+                break;
+            }
+        }
+        if (i_1 == NO_NEIGH)
+            index_1.clear();
+        if (index_1.size() == 0)
+        {
+            i_1 = _num_nodes;
+            _map_pos[node._val].push_back(i_1);
+            node.setId(_num_nodes++);
+            _g_nodes.push_back(node);
+            _g_edges.push_back(vector<OwnNode_t>());
+            _g_in_edges.push_back(vector<OwnNode_t>());
+            if (show)
+                cout << node._val<<" "<<_g_nodes[_num_nodes-1]._val<<" "<<node._id<<" "<<_g_nodes[_num_nodes-1]._id<<endl;
+        }
+    }
     void addNode(UG_Node node_parent, UG_Node node_son)
     {
         vector<OwnNode_t> index_1 = _get_posible_pos(node_parent._val),index_2 = _get_posible_pos(node_son._val);
@@ -222,6 +251,7 @@ public:
             node_parent.setId(_num_nodes++);
             _g_nodes.push_back(node_parent);
             _g_edges.push_back(vector<OwnNode_t>());
+            _g_in_edges.push_back(vector<OwnNode_t>());
             _numedges++;
         }
         if (index_2.size() == 0)
@@ -231,10 +261,12 @@ public:
             node_son.setId(_num_nodes++);
             _g_nodes.push_back(node_son);
             _g_edges.push_back(vector<OwnNode_t>());
+            _g_in_edges.push_back(vector<OwnNode_t>());
         }
         _g_edges[i_1].push_back(i_2);
+        _g_in_edges[i_2].push_back(i_1);
         // Lets check the information
-        print();
+        //print();
     }
 
     /*
@@ -285,6 +317,8 @@ public:
      */
     size_t vertices();
     size_t edges();
+    size_t out_degree(OwnNode_t);
+    size_t in_degree(OwnNode_t);
     /*
      * Unitigs
      */
@@ -305,9 +339,13 @@ private:
     void _complete_reach_matrix();
     bool _reach(OwnNode_t, OwnNode_t);
     void _print_reachability();
-
+    /*
+     * Extension
+     */
+    vector<UG_Node> _get_starting_nodes();
+    void _extension(queue<UG_Node>&, vector<bool>&, vector<OwnNode_t>&, UG_Node);
     vector<UG_Node> _g_nodes;
-    vector<vector<OwnNode_t>> _g_edges;
+    vector<vector<OwnNode_t>> _g_edges, _g_in_edges;
     vector<unordered_set<OwnNode_t>> _reachability;
     size_t _numedges, _num_nodes;
     unordered_map<OwnNode_t, vector<OwnNode_t>> _map_pos;
