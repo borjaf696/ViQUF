@@ -20,6 +20,7 @@
 #define SPAN 128
 #define ILLUMINA true
 #define VERSION 2
+#define MIN_LENGTH 1000
 
 using namespace std;
 using namespace sdsl;
@@ -37,6 +38,11 @@ struct stored_info
         _remaining = info._remaining;
         _unitig = info._unitig;
         return *this;
+    }
+
+    void print()
+    {
+        cout << " "<<_unitig<<"-"<<_pos<<"-"<<_remaining<<endl;
     }
     size_t _pos, _remaining, _unitig = 0;
 };
@@ -93,9 +99,10 @@ void _buildBitMap(bit_vector & bDolars, RankOnes & bDolarRank, SelectOnes  & bDo
 
 void _buildHash(unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_map,
         char * unitigs, size_t total_unitigs, size_t kmerSize
-        ,unordered_map<size_t, Sequence> & sequence_map)
+        ,unordered_map<size_t, string> & sequence_map)
 {
     cout << "Building hash..."<<endl;
+    cout << "File: "<<unitigs<<endl;
     auto start = chrono::steady_clock::now();
     size_t num_unitig = 0;
     /*
@@ -119,9 +126,23 @@ void _buildHash(unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_map,
             kmer_map[kmerIt->revcomp()] = stored_info(l-pos-1, pos, total_unitigs/2 + num_unitig);
             pos++;
         }
-        sequence_map[num_unitig] = seq;
+        sequence_map[num_unitig] = seq.toString();
         num_unitig++;
     }
+    /*// Showing unitigs
+    cout << "Unitigs: "<<endl;
+    for (auto u: sequence_map)
+    {
+        cout << "   Number: "<<u.first<<" ";
+        cout << "   Sequence: "<<u.second<<endl;
+    }
+    // Displaying kmers
+    cout <<"Kmers: "<<endl;
+    for (auto u: kmer_map)
+    {
+        cout <<" Kmer: "<<kmerModel.toString(u.first)<<endl;
+        u.second.print();
+    }*/
     cout <<"Number of unitigs: "<<num_unitig<<endl;
     auto end = chrono::steady_clock::now();
     cout << "Elapsed time in milliseconds (FULL) : "
@@ -135,7 +156,9 @@ void _traverseReadsHash(char * file_left, char * file_right
         ,const unordered_map<Kmer<SPAN>::Type,stored_info> kmer_map
         ,size_t kmerSize, DBG & g)
 {
-    cout << "Traversing reads!"<< endl;
+    cout << "Traversing paired-end reads: "<< endl;
+    cout << "Left: "<<file_left<<endl;
+    cout << "Right: "<<file_right<<endl;
     auto start = chrono::steady_clock::now();
     /*
      * Paired_end input banks
@@ -145,16 +168,17 @@ void _traverseReadsHash(char * file_left, char * file_right
 
     PairedIterator <Sequence> *itPair = new PairedIterator<Sequence>(inputBank_left->iterator(), inputBank_right->iterator());
     ProgressIterator <std::pair<Sequence, Sequence>> progress_iter(itPair, "paired-end", inputBank_left->estimateNbItems());
-    /*
-     * Kmer Models
-     */
-    Kmer<SPAN>::ModelCanonical kmerModel (kmerSize);
-    Kmer<SPAN>::ModelCanonical::Iterator kmerItLeft (kmerModel), kmerItRight (kmerModel);
     cout << "Starting reads traversion"<<endl;
     for (progress_iter.first(); !progress_iter.isDone(); progress_iter.next()) {
         Sequence &s1 = itPair->item().first;
         Sequence &s2 = itPair->item().second;
         size_t l1 = s1.getDataSize(), l2 = s2.getDataSize();
+        /*
+         * Kmer Models
+         */
+        Kmer<SPAN>::ModelCanonical kmerModel (kmerSize);
+        Kmer<SPAN>::ModelCanonical::Iterator kmerItLeft (kmerModel), kmerItRight (kmerModel);
+
         kmerItLeft.setData(s1.getData());
         kmerItRight.setData(s2.getData());
         /*
@@ -182,7 +206,7 @@ void _traverseReadsHash(char * file_left, char * file_right
                     size_t remaining_unitig_left = (*map_iterator_left).second._remaining
                             ,remaining_unitig_right = (*map_iterator_right).second._remaining;
                     g.addPair(unitig_left, unitig_right);
-                    if (max(l1,l2) < min(remaining_unitig_left, remaining_unitig_right))
+                    /*if (max(l1,l2) < min(remaining_unitig_left, remaining_unitig_right))
                         break;
                     for (size_t i = 0; i < min(remaining_unitig_left, remaining_unitig_right)-1; ++i)
                     {
@@ -192,8 +216,12 @@ void _traverseReadsHash(char * file_left, char * file_right
                         l1--;l2--;
                         if (kmerItLeft.isDone() || kmerItRight.isDone())
                             break;
-                    }
+                    }*/
                 }
+            }else{
+                /*cout << "Kmer not found: "<<kmerModel.toString(kmerItLeft->forward())<<endl;
+                cout << "Reverse: "<<kmerModel.toString(kmerItLeft->revcomp())<<endl;
+                exit(1);*/
             }
             kmerItRight.next();
             if (kmerItRight.isDone())
@@ -436,15 +464,15 @@ void _traverseReads(char * file_left, char * file_right ,const FMIndex & fm, con
  * Reporting
  */
 void _write_unitigs(vector<vector<size_t>> unitigs
-        , char * write_path, const unordered_map<size_t, Sequence> & sequence_map
-        , size_t num_unitigs_fw)
+        , char * write_path, const unordered_map<size_t, string> & sequence_map
+        , size_t num_unitigs_fw, bool force_write = false)
 {
     cout << "Writing unitigs"<<endl;
     size_t num_unitigs = 0;
     ofstream outputFile(write_path);
     for (auto unitig:unitigs)
     {
-        outputFile << ">"<<num_unitigs++<<endl;
+        string full_unitig = "";
         for (auto u:unitig)
         {
             bool reverse = false;
@@ -453,11 +481,16 @@ void _write_unitigs(vector<vector<size_t>> unitigs
                 u -= (num_unitigs_fw/2);
                 reverse = true;
             }
-            Sequence seq = sequence_map.at(u);
-            cout << "Reverse:"<<endl;
-            cout << seq.toString()<<endl;
-            //outputFile << ((reverse)?seq.getRevcomp():seq.toString())<<endl;
-            outputFile << seq.toString()<<endl;
+            string seq = sequence_map.at(u);
+            char * cstr = new char [seq.length()+1];
+            std::strcpy (cstr, seq.c_str());
+            full_unitig += ((reverse)?Sequence(cstr).getRevcomp():seq);
+        }
+        if (full_unitig.length() > MIN_LENGTH || force_write)
+        {
+            outputFile << ">"<<num_unitigs++<<endl;
+            outputFile << full_unitig;
+            outputFile << endl;
         }
     }
     cout << "End!"<< endl;
@@ -465,12 +498,18 @@ void _write_unitigs(vector<vector<size_t>> unitigs
 }
 
 
-void _build_process_cliques(DBG & g, const unordered_map<size_t, Sequence> & sequence_map, char * write_path)
+void _build_process_cliques(DBG & g, const unordered_map<size_t, string> & sequence_map, char * write_path)
 {
     cout << "Processing cliques from DBG... This will take a while!" <<endl;
     DBG apdbg;
     g.build_process_cliques(apdbg);
     vector<vector<size_t>> unitigs = apdbg.export_unitigs();
+    /*cout << "Unitigs!"<<endl;
+    for (auto u: unitigs) {
+        for (auto u2: u)
+            cout << " " << u2;
+        cout << endl;
+    }*/
     _write_unitigs(unitigs, write_path, sequence_map, g.vertices());
 }
 
@@ -483,10 +522,11 @@ DBG _buildGraph(char * file)
 
 int main (int argc, char* argv[])
 {
-    cout << "Params: unitigFile, dolarsFile (placement), leftRead, rightRead, kmerSize, graphFile, unitigsFasta, unitigsfile"<<endl;
-    char * unitigs = argv[1], * dolars = argv[2], * file1 = argv[3]
-            , *file2 = argv[4] , * graphFile = argv[6], * unitigsFa = argv[7], * unitigs_file = argv[8];
-    size_t kmerSize = atoi(argv[5]);
+    cout << "Params: unitigFile, dolarsFile (placement),tmp_file, kmerSize, graphFile, unitigsFasta, unitigsfile "<<endl;
+    char * unitigs = argv[1], * dolars = argv[2], * graphFile = argv[5], * unitigsFa = argv[6], * unitigs_file = argv[7];
+    string file_1 =  string(argv[3]) + "/0.fasta", file_2 = string(argv[3]) + "/1.fasta";
+    char * file1 = file_1.c_str(), * file2 = file_2.c_str();
+    size_t kmerSize = atoi(argv[4]);
     FMIndex fmIndex;
     unordered_map<Kmer<SPAN>::Type,stored_info> kmer_map;
     bit_vector bDolars;
@@ -495,7 +535,7 @@ int main (int argc, char* argv[])
     /*
      * Trial
      */
-    unordered_map<size_t, Sequence> sequence_map;
+    unordered_map<size_t, string> sequence_map;
 
     DBG g = _buildGraph(graphFile);
     if (VERSION == 1)
@@ -514,6 +554,11 @@ int main (int argc, char* argv[])
          */
         _buildHash(kmer_map, unitigsFa, g.vertices(), kmerSize, sequence_map);
         _traverseReadsHash(file1, file2, kmer_map, kmerSize, g);
+        cout << "Sanity check!"<<endl;
+        vector<vector<size_t>> unitigs = g.export_unitigs();
+        _write_unitigs(unitigs, "tmp/testing_unitigs.fa", sequence_map, g.vertices(), true);
+        g.stats();
+        //g.print();
         _build_process_cliques(g, sequence_map, unitigs_file);
     }
     //g.print();

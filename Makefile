@@ -12,7 +12,7 @@ SDSLFLAGS = -L ~/lib -lsdsl -ldivsufsort -ldivsufsort64
 
 #Graph
 graphObj := ${patsubst %.cpp,%.o,${wildcard lib/graph/*.cpp}}
-lib/graph/%.o: lib/graph/%.cpp graph/*.h lib/utils/*h
+lib/graph/%.o: lib/graph/%.cpp graph/*.h
 	${CXX} -c ${CXXFLAGS} $< -o $@
 
 #Main_code
