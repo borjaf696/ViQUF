@@ -1,0 +1,24 @@
+Version actual:
+    - Complete 3:
+            - Para A-B
+            - getInNeighs(B) != A - obtener PE de todos los padres de B - extra_neigh
+            - getOutNeighs(A) != B - obtener PE de todos los hijos de A - extra_node
+            - PE(A) - extra_neigh
+            - PE(B) - extra_node
+      Update:
+            - Para eliminar la información compartida extra entre diversos vecinos se plantea lo siguiente:
+                    - (A-D)+(A y C)
+                    - (B-c)+)B y D)
+      - Post-procesados de pair-end - eliminamos aquellos que estén fuera de control (LCL,UCL)
+             - Para meta = 2; para quasi = 3 - Hay que usar la longitud del unitig - mirar las modas
+             - Incluso con la length sigue siendo mala aproximación - LCL negativo!!
+             - Done!
+      - Corregir los cliques - guiarlos en base a la frecuencia del unitig?
+      - Todos los cliques deben tener información tanto del padre como del hijo
+      - Nueva heurística:
+            - clique intersecado con el padre - i1 - si i1 subset hijo - eliminar
+            - clique intersecado con el hijo - i2 - si i2 subset padre - eliminar
+            - ¿Es el hijo subconjunto del padre o viceversa?
+            - Si esto pasa - evaluar ese clique contra el resto - si existe otro clique de la que este sea un subconjunto -> eliminar
+      - Probar - resolver el problema asignando flujo a las ¿aristas? y luego resolver el problema con el camino más pesado.
+        - Creamos 3 sources y 3 targets: 1 para englobar todos los s/t, otro como sumideros cuando no cuadren los números y otros como global s/s.

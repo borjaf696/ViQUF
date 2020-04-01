@@ -60,9 +60,9 @@ class RepresentantGraph:
         print('Bcalm cmd: ',cmd)
         Utils.executecmd(cmd)
         cmd = ['python',self.exeGFA,args['out']+tail,args['out'],args['kmerSize']]
-        print('ToGFA cmd: ', cmd)
+        print('To GFA cmd: ', cmd)
         Utils.executecmd(cmd)
-        print('ToFm')
+        print('To FM')
         BioUtils.fastToFm(args['out']+tail,args['out']+'.FM')
 
     def __indexGFA(self, file):
@@ -100,31 +100,58 @@ class RepresentantGraph:
 
 if __name__=='__main__':
     print('Lets do this')
-    tmpDir, resDir = 'tmp/', 'tmpresultsDir/'
+    tmpDir, resDir = 'tmp/', 'tmpresultsDir_'
     readFiles = []
-    def __preprocess(path):
+    def __preprocess_karect(path):
+        global resDir
+
+        resDir = resDir + 'Karect/'
+        Utils.remove_dir(resDir)
         Utils.mkdir(resDir)
         files = Utils.get_files(path, ['fastq'])
         files.sort()
         print('Files: ', files)
         cmd = ['karect','-correct','-matchtype=hamming','-celltype=haploid','-resultdir='+resDir]+['-inputfile='+t for t in files]
         Utils.executecmd(cmd)
+        Utils.remove_dir(tmpDir)
         Utils.mkdir(tmpDir)
         suffix = 'Ownlatest/'
         files, outputFile = Utils.get_files(resDir,['fastq']), tmpDir+suffix+'append.fasta'
         files.sort()
-        print('Files: ', files)
+        print('New files corrected: ', files)
         newFiles = BioUtils.renameFastqSeqs(files, tmpDir)
         print('NewFiles: ', newFiles)
         Utils.mkdir(tmpDir+suffix)
         return [Utils.append_files(newFiles, outputFile), newFiles[0]]
+
+    def __preprocess_consent(path):
+        global resDir
+
+        resDir += 'Consent/'
+        suffix = 'CONSENT_corrected.fasta'
+        Utils.remove_dir(resDir)
+        Utils.mkdir(resDir)
+        files = Utils.get_files(path)
+        print('Files: ',files)
+        cmd = ['third-party/CONSENT/CONSENT-correct','--in',files[0],'--out',resDir+suffix,'--type','PB']
+        Utils.executecmd(cmd)
+        Utils.remove_dir(tmpDir)
+        Utils.mkdir(tmpDir)
+        suffix = 'Ownlatest/'
+        files = Utils.get_files(resDir)
+        print('New files corrected: ', files)
+        Utils.mkdir(tmpDir+suffix)
 
     def __preprocess2(files):
         suffix = 'Ownlatest/'
         outputFile = tmpDir+suffix+'merge.fasta'
         return Utils.append_files(files, outputFile)
 
-    pathIn = __preprocess(sys.argv[1])
+    type = sys.argv[4]
+    if type == 'ngs':
+        pathIn = __preprocess_karect(sys.argv[1])
+    elif type == 'tgs':
+        pathIn = __preprocess_consent(sys.argv[1])
     path, kmerSize, abundanceMin = pathIn[0], sys.argv[2], sys.argv[3]
     print('Path: ', path)
     rG = RepresentantGraph(path, kmerSize, abundanceMin)

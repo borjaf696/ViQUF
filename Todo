@@ -1,3 +1,14 @@
 Moving into full representative representation - Donete via bcalm
 - Revisar construccion de cliques por que parece que soy yo el que mezcla la informacion. - está bien
--
+- Hacer el ejemplo a mano - donette
+- Probar intersección de información de emparejados entre nodos "en el mismo plano" y descartar aquella información que sea totalmente irrelevante.
+    * Idea - descartar información que realmente no pinte nada
+    * Next - coger para la pareja A - B solo la información (P(A) - P(N(A) - B)) U (P(B) - P(IN(B) - A))
+- Filegree edges - We denote the coverage of an edge e in the assembly graph as cov(e) and define the coverage cov(v) of
+ a vertex v as the maximum of cov(e) over all edges e incident to v. Given an edge e incident to a vertex v and a threshold
+ ratio (the default value is 10), a vertex v predominates an edge e if its coverage is significantly higher than the coverage
+ of the edge e; that is, if ratio · cov(e) < cov(v). An edge (v,w) is weak if it is predominated by either v or w.
+ - Arreglar cliques (REVISAR)
+    - Hacer la parte de añadir las frecuencias de las aristas.
+ - Chequear intersecciones por que creo que alguna debe ir mal - no cuadran los resultados para el 670.
+ - Revisar el DAG

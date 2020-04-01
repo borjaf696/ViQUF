@@ -10,12 +10,16 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="4458d666-b6f4-4905-bf09-67ebaea7f54d" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/Versions" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Makefile" beforeDir="false" afterPath="$PROJECT_DIR$/Makefile" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Todo" beforeDir="false" afterPath="$PROJECT_DIR$/Todo" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/graph/graph.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/lib/graph/graph.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/graph/graph.h" beforeDir="false" afterPath="$PROJECT_DIR$/lib/graph/graph.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/test-meta.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-meta.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test/testBcalm.py" beforeDir="false" afterPath="$PROJECT_DIR$/test/testBcalm.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/utils.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -35,13 +39,8 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectFrameBounds" extendedState="6">
-    <option name="x" value="292" />
-    <option name="y" value="-4" />
-    <option name="width" value="1400" />
-    <option name="height" value="967" />
-  </component>
   <component name="ProjectId" id="1Uj5RROTT9hRqCGyxShwWdjQ4Zh" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showExcludedFiles" value="true" />
@@ -59,12 +58,12 @@
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
   <component name="RecentsManager">
-    <key name="MoveFile.RECENT_KEYS">
-      <recent name="$PROJECT_DIR$" />
-    </key>
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/third-party/utils" />
       <recent name="$PROJECT_DIR$/lib/utils" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$" />
     </key>
   </component>
   <component name="ServiceViewManager">
@@ -93,7 +92,8 @@
       <workItem from="1576205810651" duration="2106000" />
       <workItem from="1576367336222" duration="49213000" />
       <workItem from="1579760208376" duration="75427000" />
-      <workItem from="1581425688175" duration="19790000" />
+      <workItem from="1581425688175" duration="221096000" />
+      <workItem from="1584369283530" duration="155280000" />
     </task>
     <servers />
   </component>
@@ -101,18 +101,31 @@
     <option name="version" value="1" />
   </component>
   <component name="WindowStateProjectService">
+    <state x="683" y="282" width="590" height="390" key="#com.intellij.fileTypes.FileTypeChooser" timestamp="1583226860638">
+      <screen x="67" y="27" width="1832" height="902" />
+    </state>
+    <state x="683" y="282" width="590" height="390" key="#com.intellij.fileTypes.FileTypeChooser/67.27.1832.902@67.27.1832.902" timestamp="1583226860638" />
     <state x="776" y="245" width="424" height="484" key="FileChooserDialogImpl" timestamp="1576286388309">
       <screen x="67" y="27" width="1853" height="923" />
     </state>
     <state x="776" y="245" width="424" height="484" key="FileChooserDialogImpl/67.27.1853.923@67.27.1853.923" timestamp="1576286388309" />
-    <state x="642" y="308" key="com.intellij.ide.util.TipDialog" timestamp="1581425715257">
-      <screen x="67" y="27" width="1832" height="902" />
-    </state>
-    <state x="642" y="308" key="com.intellij.ide.util.TipDialog/67.27.1832.902@67.27.1832.902" timestamp="1581425715257" />
-    <state x="649" y="315" key="com.intellij.ide.util.TipDialog/67.27.1853.923@67.27.1853.923" timestamp="1576284458959" />
-    <state x="656" y="225" width="672" height="678" key="search.everywhere.popup" timestamp="1581336311817">
+    <state x="649" y="315" key="com.intellij.ide.util.TipDialog" timestamp="1584369282746">
       <screen x="67" y="27" width="1853" height="923" />
     </state>
-    <state x="656" y="225" width="672" height="678" key="search.everywhere.popup/67.27.1853.923@67.27.1853.923" timestamp="1581336311817" />
+    <state x="642" y="308" key="com.intellij.ide.util.TipDialog/67.27.1832.902@67.27.1832.902" timestamp="1581425715257" />
+    <state x="649" y="315" key="com.intellij.ide.util.TipDialog/67.27.1853.923@67.27.1853.923" timestamp="1584369282746" />
+    <state x="640" y="91" width="707" height="792" key="find.popup" timestamp="1585639098360">
+      <screen x="67" y="27" width="1853" height="923" />
+    </state>
+    <state x="640" y="91" width="707" height="792" key="find.popup/67.27.1853.923@67.27.1853.923" timestamp="1585639098360" />
+    <state x="647" y="215" width="672" height="677" key="run.anything.popup" timestamp="1583914235091">
+      <screen x="67" y="27" width="1832" height="902" />
+    </state>
+    <state x="647" y="215" width="672" height="677" key="run.anything.popup/67.27.1832.902@67.27.1832.902" timestamp="1583914235091" />
+    <state x="656" y="225" width="672" height="678" key="search.everywhere.popup" timestamp="1585512271721">
+      <screen x="67" y="27" width="1853" height="923" />
+    </state>
+    <state x="649" y="220" width="672" height="663" key="search.everywhere.popup/67.27.1832.902@67.27.1832.902" timestamp="1583825056242" />
+    <state x="656" y="225" width="672" height="678" key="search.everywhere.popup/67.27.1853.923@67.27.1853.923" timestamp="1585512271721" />
   </component>
 </project>

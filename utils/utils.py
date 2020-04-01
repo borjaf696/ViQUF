@@ -424,3 +424,23 @@ class BioUtils:
         Utils.remove_file(fileIn)
         Utils.cpfile(fileOut, fileIn)
         Utils.remove_file(fileOut)
+
+    @staticmethod
+    def splitFqFile(file, outputPattern, sep = '/'):
+        left, right = outputPattern+'_1.fq',outputPattern+'_2.fq'
+        l_or_r, p = False, False
+        with open(file, 'r') as f, open(left,'a+') as f_left, open(right,'a+') as f_right:
+            for i,line in enumerate(f.readlines()):
+                if p:
+                    if l_or_r:
+                        f_left.write(line)
+                    else:
+                        f_right.write(line)
+                if line[0] == '@':
+                    l_split = line.rstrip('\n').split('/')
+                    if len(l_split) > 1:
+                        p = True
+                        l_or_r = (l_split[1] == '1')
+                else:
+                    p = False
+        return f_left,f_right

@@ -12,7 +12,7 @@ SDSLFLAGS = -L ~/lib -lsdsl -ldivsufsort -ldivsufsort64
 
 #Graph
 graphObj := ${patsubst %.cpp,%.o,${wildcard lib/graph/*.cpp}}
-lib/graph/%.o: lib/graph/%.cpp graph/*.h
+lib/graph/%.o: lib/graph/%.cpp lib/graph/*.h
 	${CXX} -c ${CXXFLAGS} $< -o $@
 
 #Main_code
@@ -20,10 +20,10 @@ m_main_obj := ${patsubst %.cpp,%.o,${wildcard src/*.cpp}}
 src/%.o: src/%.cpp 
 	${CXX} -c ${CXXFLAGS} ${SDSLFLAGS} $< -o $@
 
-#Read_Seqs
-p_obj := ${patsubst %.cpp,%.o,${wildcard lib/utils/*.cpp}}
-lib/utils/%.o: lib/utils/%.cpp lib/utils/*h
-	${CXX} -c ${CXXFLAGS} ${LDFLAGS} $< -o $@
+# Extra_code
+extra_obj := ${patsubst %.cpp,%.o,${wildcard src/*.cpp}}
+lib/extra/%.o: lib/extra/%.cpp lib/extra/%.h
+	${CXX} -c ${CXXFLAGS} $< -o $@
 
 mCodeRelease := src/test-meta.o
 mCodeGatb := src/main.o
