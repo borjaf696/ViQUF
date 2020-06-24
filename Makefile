@@ -42,3 +42,4 @@ gatb :${mCodeGatb}
 clean:
 	-rm ${graphObj}
 	-rm ${m_main_obj}
+	-rm ${extra_obj}

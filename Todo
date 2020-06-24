@@ -12,3 +12,11 @@ Moving into full representative representation - Donete via bcalm
     - Hacer la parte de añadir las frecuencias de las aristas.
  - Chequear intersecciones por que creo que alguna debe ir mal - no cuadran los resultados para el 670.
  - Revisar el DAG
+ - Corregir el flow - to path (añadir sources y sink globales con flujo igual a la suma del flujo saliente de todos los nodos con los que conecta).
+ - Antes de nada ver como es la distribución de frecuencias.
+ - Polishing - eliminar los emparejados más frecuentes, es probable que pertenezcan a varios y estén liando el ensamblaje posterior
+    (ojo hacerlo a nivel global y no individual) - tiene buena pinta
+
+ - Mirar el LCL tratar de usar la varianza (probar versión media < 2*sigma? Podemos asumir algo así pensando en que si la media < 2*sigma entonces no es significativo)
+ - Púlido local - queda pendiente el post_process_pairs por que creo que puede no ser necesario (mirar versión global)
+ - gfa del grafo local que creo para el nodo que estoy mirando - tratar de descubrir si tiene o no sentido para nuestro caso de estudio (Pending).

@@ -4,7 +4,6 @@
 
 #ifndef VIADBG_TRIAL_EXTRA_H
 #define VIADBG_TRIAL_EXTRA_H
-
 /*
  * Parameters
  */
@@ -40,16 +39,73 @@ struct Parameters
             Parameters::get().postProcess = param;
         if (param_read == "gfa")
             Parameters::get().gfa = param;
+        if (param_read == "debug")
+            Parameters::get().debug = param;
     }
     double missmatches;
     size_t genome_size = 0;
     double num_unique_kmers = 0;
     size_t accumulative_h = 0;
     bool full_info = false, metagenomic = false,
-            postProcess = false, remove_duplicates = true, polish = true, gfa = false;
+            postProcess = false, remove_duplicates = true, polish = true, gfa = false, debug = false;
     size_t kmerSize;
     size_t numThreads;
     bool show = false;
 };
+/*
+ * Maths operations
+ */
+struct Maths{
 
+    template<typename T>
+    static T my_round(T value, bool up = false)
+    {
+        float result = value, first_val = 1, jump = 10;
+        while (result > 1.0)
+        {
+            first_val *= jump;
+            result = value / first_val;
+        }
+        first_val /= jump;
+        return ((!up)?floor(value / first_val):ceil(value/first_val)) * first_val;
+    }
+
+    /*
+     * Input must be shorted before trying
+     */
+    template<typename T>
+    static T i_quantile(vector<T> container, float quantile = 0.0, bool next_value = true)
+    {
+        size_t index = ceil((float) container.size() * quantile);
+        T result = container[index];
+        if (quantile == 0.0)
+            return result;
+        while (container[index] == result)
+        {
+            (next_value)?index++:index--;
+        }
+        return container[index];
+    }
+};
+
+
+struct Common {
+    static void display_unitig(const vector<string> & sequence_map, size_t place)
+    {
+        bool reverse = place >= sequence_map.size();
+        string seq = sequence_map.at(reverse?place - sequence_map.size():place);
+        seq = ((reverse)?Sequence(seq.c_str()).getRevcomp():seq);
+        cout<<" "<<seq<<" ";
+    }
+
+    static string return_unitig(const vector<string> & sequence_map, size_t place)
+    {
+        bool reverse = (place >= sequence_map.size());
+        string seq = sequence_map.at(reverse?place - sequence_map.size():place);
+        return ((reverse)?Sequence(seq.c_str()).getRevcomp():seq);
+    }
+};
+
+struct System {
+};
 #endif //VIADBG_TRIAL_EXTRA_H

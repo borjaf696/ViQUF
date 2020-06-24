@@ -22,3 +22,32 @@ Version actual:
             - Si esto pasa - evaluar ese clique contra el resto - si existe otro clique de la que este sea un subconjunto -> eliminar
       - Probar - resolver el problema asignando flujo a las ¿aristas? y luego resolver el problema con el camino más pesado.
         - Creamos 3 sources y 3 targets: 1 para englobar todos los s/t, otro como sumideros cuando no cuadren los números y otros como global s/s.
+        - Cost function 1 /sqrt(cov(u,v))
+        - Try dividiendo los nodos y metiendo capacidad máxima a la arista entre ellos
+        - Mirar funciones de coste + tratar de ver como hacer con las fuentes:
+            * Caso fuentes y target - la idea es ver si con una distribución uniforme del flujo entre las aristas cabría la posibilidad de que una arista fuese missing:
+                * In_flow / aritas.size() < diff(abundance, in_flow) -> source_potencial
+                * Out_flow / aristas.size() < diff(abundance, out_flow) -> target_potencial
+        - Coste - opción: (cov(u,v) - cov_padres) / sqrt(cov(u,v)) - la idea es priorizar las cercanas y de mayor capacidad.
+            * Corregir funciones de coste!!!! Usar el split en múltiples aristas paralelas para poder simular las funciones de coste no lineal.
+            * Mirar de buscar una función para llenar primero las más cercanas al flujo. Solved
+            * Revisar flujos - por que hay algo que no cuadra.
+        - Fijado un flujo de 30 mínimo para poder obtener un camino.
+        - Dados todos los nodos potenciales - eliminar aquellos cuya PE sea subconjunto de otra (no hacer la unión que puede no tener sentido)
+        **** Polishing **** CUIDADO ESTO ESTÁ SIENDO TESTEADO
+        - Saltar nodos con frecuencia < del I_quantile al 5%
+        - Saltar nodos con frecuencia < del LCL (al 5% para sintéticos pendiente en datos reales)
+        - Saltar emparejamientos < del LCL y > UCL
+        - Pensar en como calcular el LCL (para datos reales)
+
+        **** Grafo de redes de flujo ****
+        - Corrección por ciclos - restar el número mínimo de alcances para poner valor 0 en reached_by
+            + Corregido:
+                * Seleccionamos la arista de mayor flujo como norma
+                * Se seleccionan los caminos con número mínimo de veces alcanzado
+        - Detección de enlaces erróneos - untigs que son alcanzados pero no deberían:
+            + Obtener por cuantos es alcanzado y a cuantos alcanza cada nodo.
+            + Sumarlos y verificar que existe un patrón.
+
+        *** Preprocesado ***
+        - Se ha incluido la versión del knee (Elbow) para el cálculo conservador del límite.

@@ -2,7 +2,6 @@
 // Created by borja on 29/10/19.
 //
 // We include what we need for the test
-#include <gatb/gatb_core.hpp>
 #include <sdsl/suffix_arrays.hpp>
 #include <sdsl/bit_vectors.hpp>
 #include <fstream>
@@ -677,7 +676,7 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
     cout << "Processing cliques from DBG... This will take a while!" <<endl;
     DBG apdbg;
     g.build_process_cliques(apdbg, sequence_map, num_unitigs);
-    vector<vector<size_t>> unitigs = apdbg.export_unitigs(true);
+    vector<vector<size_t>> unitigs = apdbg.export_unitigs(sequence_map, false);
     /*cout << "Unitigs!"<<endl;
     for (auto u: unitigs) {
         for (auto u2: u)
@@ -702,6 +701,17 @@ int main (int argc, char* argv[])
     string file_1 =  string(argv[3]) + "/0.fasta", file_2 = string(argv[3]) + "/1.fasta";
     char * file1 = file_1.c_str(), * file2 = file_2.c_str();
     size_t kmerSize = atoi(argv[4]);
+    /*
+     * Naive!!!
+     */
+    for (size_t i = 0; i < argc; i++)
+    {
+        if (strcmp(argv[i],"--debug") == 0)
+        {
+            cout << "############## Debug mode activated #################"<<endl;
+            Parameters::get().debug = true;
+        }
+    }
     Parameters::get().kmerSize = kmerSize;
     FMIndex fmIndex;
     unordered_map<Kmer<SPAN>::Type,stored_info> kmer_map;
@@ -733,9 +743,10 @@ int main (int argc, char* argv[])
         _add_frequencies(kmer_map, append_file, g.vertices(), kmerSize, sequence_map, g);
         _traverseReadsHash(file1, file2, kmer_map, kmerSize, g, g.vertices(), sequence_map);
         cout << "Sanity check!"<<endl;
-        vector<vector<size_t>> unitigs = g.export_unitigs();
+        vector<vector<size_t>> unitigs = g.export_unitigs(sequence_map);
         _write_unitigs(unitigs, "tmp/testing_unitigs.fa", sequence_map, g.vertices(),kmerSize, false);
-        g.stats();
+        if (Parameters::get().debug)
+            g.stats();
         /*cout << "Grafo original"<<endl;
         g.print();*/
         _build_process_cliques(g, sequence_map, unitigs_file, kmerSize,g.vertices());
