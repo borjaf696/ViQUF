@@ -278,6 +278,14 @@ void _traverseReadsHash(char * file_left, char * file_right
         ,size_t kmerSize, DBG & g, size_t total_unitigs
         ,const vector<string> & sequence_map)
 {
+    /*
+     * Debug options
+     */
+    std::ofstream pe_information;
+    if (Parameters::get().debug)
+    {
+        pe_information.open("debug/pe_information.txt", std::ofstream::out);
+    }
     cout << "Traversing paired-end reads: "<< endl;
     cout << "Left: "<<file_left<<endl;
     cout << "Right: "<<file_right<<endl;
@@ -295,6 +303,10 @@ void _traverseReadsHash(char * file_left, char * file_right
     size_t number_reads = 0;
     PairedIterator <Sequence> *itPair = new PairedIterator<Sequence>(inputBank_left->iterator(), inputBank_right->iterator());
     ProgressIterator <std::pair<Sequence, Sequence>> progress_iter(itPair, "paired-end", inputBank_left->estimateNbItems());
+    /*
+     * (TRIAL) Bloom filter for paired-end
+     */
+    bit_vector pairs_added = bit_vector(pow(2,30),0);
     cout << "Paired-end traversion"<<endl;
     for (progress_iter.first(); !progress_iter.isDone(); progress_iter.next()) {
         Sequence &s1 = itPair->item().first;
@@ -311,6 +323,10 @@ void _traverseReadsHash(char * file_left, char * file_right
          * Traverse kmers
          */
         kmerItRight.first();
+        /*
+         * (TRIAL) Unordered_set composed unitigs as keys.
+         */
+        unordered_set<uint32_t> pairs_set_1;
         for (kmerItLeft.first(); !kmerItLeft.isDone(); kmerItLeft.next())
         {
             bool show = false;
@@ -343,22 +359,48 @@ void _traverseReadsHash(char * file_left, char * file_right
                                                     unitig_right + total_unitigs / 2;
                     if (pos_left >= rate || pos_left >= (u_length - rate))
                     {
+                        uint32_t key, rc_key;
                         if (forward) {
                             if (forward_right) {
-                                g.addPair(unitig_left, unitig_right, forward, forward_right);
-                                g.addPair(rev_comp_unitig_right, rev_comp_unitig_left, forward, forward_right);
+                                key = (unitig_left << 15)| unitig_right
+                                        , rc_key = (rev_comp_unitig_right << 15) | rev_comp_unitig_left;
+                                if (pairs_added[key] == 1 & pairs_set_1.find(key) == pairs_set_1.end())
+                                {
+                                    g.addPair(unitig_left, unitig_right, forward, forward_right);
+                                    g.addPair(rev_comp_unitig_right, rev_comp_unitig_left, forward, forward_right);
+                                }
                             } else {
-                                g.addPair(unitig_left, rev_comp_unitig_right, forward, forward_right);
-                                g.addPair(unitig_right, rev_comp_unitig_left, forward, forward_right);
+                                key = (unitig_left << 15)| rev_comp_unitig_right
+                                        , rc_key = (unitig_right << 15) | rev_comp_unitig_left;
+                                if (pairs_added[key] == 1 & pairs_set_1.find(key) == pairs_set_1.end())
+                                {
+                                    g.addPair(unitig_left, rev_comp_unitig_right, forward, forward_right);
+                                    g.addPair(unitig_right, rev_comp_unitig_left, forward, forward_right);
+                                }
                             }
                         } else {
                             if (forward_right) {
-                                g.addPair(rev_comp_unitig_left, unitig_right, forward, forward_right);
-                                g.addPair(rev_comp_unitig_right, unitig_left, forward, forward_right);
+                                key = (rev_comp_unitig_left << 15)| unitig_right
+                                        , rc_key = (rev_comp_unitig_right << 15) | unitig_left;
+                                if (pairs_added[key] == 1 & pairs_set_1.find(key) == pairs_set_1.end())
+                                {
+                                    g.addPair(rev_comp_unitig_left, unitig_right, forward, forward_right);
+                                    g.addPair(rev_comp_unitig_right, unitig_left, forward, forward_right);
+                                }
                             } else {
-                                g.addPair(rev_comp_unitig_left, rev_comp_unitig_right, forward, forward_right);
-                                g.addPair(unitig_right, unitig_left, forward, forward_right);
+                                key = (rev_comp_unitig_left << 15)| rev_comp_unitig_right
+                                        , rc_key = (unitig_right << 15) | unitig_left;
+                                if (pairs_added[key] == 1 & pairs_set_1.find(key) == pairs_set_1.end())
+                                {
+                                    g.addPair(rev_comp_unitig_left, rev_comp_unitig_right, forward, forward_right);
+                                    g.addPair(unitig_right, unitig_left, forward, forward_right);
+                                }
                             }
+                        }
+                        if (pairs_added[key] == 0)
+                        {
+                            pairs_added[key] = 1;pairs_added[rc_key] = 1;
+                            pairs_set_1.emplace(key);pairs_set_1.emplace(rc_key);
                         }
                     }
                 }
@@ -677,6 +719,7 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
     DBG apdbg;
     g.build_process_cliques(apdbg, sequence_map, num_unitigs);
     vector<vector<size_t>> unitigs = apdbg.export_unitigs(sequence_map, false);
+    vector<vector<size_t>> unitigs_2 = apdbg.export_unitigs_basic(sequence_map, false);
     /*cout << "Unitigs!"<<endl;
     for (auto u: unitigs) {
         for (auto u2: u)
@@ -708,7 +751,7 @@ int main (int argc, char* argv[])
     {
         if (strcmp(argv[i],"--debug") == 0)
         {
-            cout << "############## Debug mode activated #################"<<endl;
+            cout << "############## Debug mode enabled #################"<<endl;
             Parameters::get().debug = true;
         }
     }

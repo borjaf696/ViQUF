@@ -29,10 +29,10 @@
 #define INF 9999999
 #define NO_NEIGH 9999999
 #define MAX_PATH 1000
-#define MAX_BRANCHES 1000
+#define MAX_BRANCHES 20
 //Maximum distance for directed graph
-#define D_MAX_PATH 50
-#define D_MAX_BRANCHES 50
+#define D_MAX_PATH 750
+#define D_MAX_BRANCHES 100
 #define COMPLETE 0
 #define CLIQUE_LIMIT 2
 #define SIZE_RELATION 0.2
@@ -46,8 +46,9 @@
 
 #define FIRSTLASTLENGTH 100
 
-#define MAX_GRANULARITY_ALLOWED 3
+#define MAX_GRANULARITY_ALLOWED 10
 #define MIN_FLOW_PATH 30
+#define READJUST 1
 
 #define L_QUANTILE 0.00
 #define H_QUANTILE 0.85
@@ -167,7 +168,7 @@ public:
             _map_abundance = unordered_map<OwnNode_t,size_t>();
         }
 
-        UG_Node(OwnNode_t val, Pairedendinformation_t paired_info):_val(val),_abundance(0),_paired_info(paired_info)
+        UG_Node(OwnNode_t val, Pairedendinformation_t paired_info):_val(val),_id(0),_abundance(0),_paired_info(paired_info)
         {
             _map_abundance = unordered_map<OwnNode_t,size_t>();
         }
@@ -237,9 +238,13 @@ public:
         {
             string result = "";
             result += "Val: "+to_string(_val)+" Id: "+to_string(_id)+" Abundance: "+to_string(_abundance)+"\n";
-            for (auto i: _paired_info)
-                result += " "+to_string(i);
-            result += "\n";
+            if (_paired_info.empty())
+                result += "empty paired information\n";
+            else {
+                for (auto i: _paired_info)
+                    result += " " + to_string(i);
+                result += "\n";
+            }
             return result;
         }
 
@@ -540,6 +545,7 @@ public:
      * Unitigs
      */
     vector<vector<OwnNode_t>> export_unitigs(const vector<string> &, bool = false);
+    vector<vector<OwnNode_t>> export_unitigs_basic(const vector<string> &, bool = false);
     /*
      * Process/show information
      */
@@ -569,6 +575,8 @@ private:
     void _extension(queue<UG_Node>&, vector<bool>&, vector<OwnNode_t>&, UG_Node,
             size_t&, size_t&,size_t&, size_t&, size_t&,size_t&,vector<vector<OwnNode_t>>&,
                     vector<bool>&, bool, const vector<string> &);
+    vector<UG_Node> _get_starting_nodes_basic();
+    void _extension_basic(vector<vector<OwnNode_t>>&, UG_Node, vector<bool>&,std::ofstream&);
     vector<UG_Node> _g_nodes;
     vector<float>_g_nodes_frequency;
     vector<vector<OwnNode_t>> _g_edges, _g_in_edges;
@@ -608,6 +616,14 @@ public:
             _id = node._id;
             _abundance = node._abundance;
             return *this;
+        }
+        void setAbundance(float newAbundance)
+        {
+            _abundance = newAbundance;
+        }
+        void readjustAbundance(float min_flow, float max_flow)
+        {
+            _abundance = (max_flow >= _abundance)?max_flow - _abundance + min_flow:min_flow;
         }
         OwnNode_t _val;
         size_t _id;
@@ -723,11 +739,12 @@ public:
         {
             outfile <<"Id: "<<n._id<<" Val: "<<n._val<<":"<<n._abundance<<endl<<" Neighs: ";
             for (size_t i = 0; i <_g_edges[n._id].size(); ++i)
-                outfile << " "<<_g_nodes[_g_edges[n._id][i]]._val<<":"<<_g_freqs[n._id][i];
+                outfile <<" "<< _g_nodes[_g_edges[n._id][i]]._id<<":"<<_g_nodes[_g_edges[n._id][i]]._val<<":"<<_g_freqs[n._id][i];
             outfile << endl;
         }
     }
     void post_process_cycles(vector<size_t>&, size_t&);
+    void readjust_flow(float, float);
 private:
     vector<Node> _g_nodes;
     vector<vector<OwnNode_t >> _g_edges, _g_in_edges;

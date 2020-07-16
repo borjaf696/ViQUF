@@ -192,6 +192,7 @@ void DBG::build_process_cliques(DBG & apdbg,
     }
     for (size_t i = 0; i < _num_nodes; ++i)
     {
+        size_t val_node = _g_nodes[i]._val;
         vector<size_t> local_histogram = vector<size_t>(10000);
         if (((size_t) _g_nodes[i]._abundance) < _quantile_L)
         {
@@ -201,7 +202,7 @@ void DBG::build_process_cliques(DBG & apdbg,
             continue;
         }
         //show = (_g_nodes[i]._id == node_test);
-        show = (_g_nodes[i]._val == node_test);
+        show = (val_node == node_test);
         Pairedendinformation_t node_pei;
         /*
          * Polish node pairs based on abundance
@@ -225,6 +226,8 @@ void DBG::build_process_cliques(DBG & apdbg,
         for (size_t n_i = 0; n_i < neighbors.size(); ++n_i)
         {
             auto n = neighbors[n_i];
+            size_t val_neigh = _g_nodes[n]._val;
+            size_t strain_freq = Maths::my_round(_g_edges_reads[i][n_i], true);
             /*
              * Output to File
              */
@@ -268,7 +271,7 @@ void DBG::build_process_cliques(DBG & apdbg,
                 for (auto n: node_pei)
                     basic_information <<" "<<n;
                 basic_information <<endl;
-                basic_information << " Neigh: " << n << " " << _g_nodes[n]._val << " ";
+                basic_information << " Neigh: " << n << " " << _g_nodes[n]._val << " Frequency of the join: "<<strain_freq<<" ("<<_g_edges_reads[i][n_i]<<") ";
                 basic_information<<Common::return_unitig(sequence_map,_g_nodes[n]._val);
                 basic_information<<" " <<neigh_pei.size()<< endl;
                 basic_information << "Paired-end information: "<<endl;
@@ -301,19 +304,35 @@ void DBG::build_process_cliques(DBG & apdbg,
                 neigh_pei_copy = minus_set(neigh_pei_copy, minus_set(extra_node, node_pei));
             }
             union_pei = union_set(new_node_pei, neigh_pei_copy);
+            union_pei.emplace(val_node);
+            union_pei.emplace(val_neigh);
+            /*
+            * Weird/Strange behaviour?
+            */
+            bool parent_in_union = in(union_pei, _g_nodes[i]._val), son_in_union = in(union_pei, _g_nodes[n]._val);
+            bool cautious_execution = (parent_in_union || son_in_union);
             if (Parameters::get().debug)
             {
                 basic_information << "Union post-procesado: "<<endl;
                 basic_information << set_to_string(union_pei);
+                basic_information << "Parent in union: "<<parent_in_union<<endl<<"Son in union: "<<son_in_union<<endl;
+                basic_information << ((cautious_execution)?"GUIDED EXECUTION":"REGULAR EXECUTION")<<endl;
             }
             UG local_graph, local_graph_2 = UG(true);
             unordered_map<size_t, size_t> traslation_map, reverse_map;
             unordered_map<size_t, float> frequencies_map;
+            float max_flow = 0.0, min_flow = INF;
             for (auto pn: union_pei)
             {
                 local_histogram[std::min((size_t) 999,getAbundance(n,pn) + getAbundance(i,pn))]++;
                 size_t id = local_graph.addVertex(pn);
-                local_graph_2.addVertexWithAbundances(pn, Maths::my_round(getAbundance(pn), true));
+                float node_abundance = (float) Maths::my_round(getAbundance(pn), true);
+                if (READJUST) {
+                    max_flow = (max_flow < node_abundance) ? node_abundance : max_flow;
+                    min_flow = (min_flow > node_abundance) ? node_abundance : min_flow;
+                    node_abundance = abs(node_abundance - strain_freq);
+                }
+                local_graph_2.addVertexWithAbundances(pn, node_abundance);
                 traslation_map[pn] = id;
                 frequencies_map[id] = getAbundance(pn);
                 reverse_map[id] = pn;
@@ -321,98 +340,185 @@ void DBG::build_process_cliques(DBG & apdbg,
             /*vector<vector<bool>> reachs = vector<vector<bool>>(union_pei.size(),vector<bool>(union_pei.size(),false))
                     , reached_by = vector<vector<bool>>(union_pei.size(),vector<bool>(union_pei.size(),false));*/
             vector<size_t> reached_by = vector<size_t>(union_pei.size(), 0);
-            std::function<void(size_t, size_t,size_t, size_t&, unordered_set<OwnNode_t> &, size_t&)> __reach = [this, &__reach,
+            std::function<void(size_t, size_t,size_t&, size_t&,
+                    unordered_set<OwnNode_t> &, vector<size_t>&, float &, float &)> __reach = [this, &__reach,
                                                                            &traslation_map,
                                                                            &local_graph_2,
-                                                                           &union_pei,&show](size_t  src, size_t target,
-                                                                                           size_t steps, size_t &branches
+                                                                           &union_pei,&show,
+                                                                           &strain_freq,
+                                                                           &cautious_execution,&val_node, &basic_information](size_t  src, size_t target,
+                                                                                           size_t &steps, size_t &branches
                                                                                            , unordered_set<OwnNode_t> & checked
-                                                                                           ,size_t & min_flow)->void{
-                checked.emplace(target);
+                                                                                           ,vector<size_t> & median_flow,
+                                                                                           float & max_flow,
+                                                                                           float & min_flow)->void{
+                if (Parameters::get().debug)
+                    basic_information <<"("<<steps<<")"<<target<<"("<<src<<")->";
                 bool swap = false;
-                unordered_set<OwnNode_t> n_checked;
-                size_t new_steps = 0, new_branches = 0, new_min_flow = 0;
+                size_t new_steps = 0, new_branches = 0;
                 if (src != target && (in(union_pei, target))) {
-                    local_graph_2.addEdge(traslation_map[src], traslation_map[target], Maths::my_round(min_flow, true));
+                    checked.emplace(target);
+                    sort (median_flow.begin(), median_flow.end());
+                    float flow_expected = Maths::my_round(Maths::median(median_flow), true);
+                    if (READJUST) {
+                        max_flow = (max_flow < flow_expected) ? flow_expected : max_flow;
+                        min_flow = (min_flow > flow_expected) ? flow_expected : min_flow;
+                        flow_expected = abs(strain_freq - flow_expected);
+                    }
+                    local_graph_2.addEdge(traslation_map[src], traslation_map[target], flow_expected);
                     src = target;
-                    n_checked = checked;
                     swap = true;
-                    new_min_flow = INF;
                 }
-                if (steps >= MAX_PATH)
+                if (steps > D_MAX_PATH) {
+                    if (Parameters::get().debug)
+                        basic_information << "Maximum path allowed "<< steps<<endl;
                     return;
-                if (branches == MAX_BRANCHES)
+                }
+                if (branches == D_MAX_BRANCHES) {
+                    if (Parameters::get().debug)
+                        basic_information << "Maximum branchs allowed "<<branches<<endl;
                     return;
+                }
                 auto neighbors = getNeighbor(target);
-                /*if (show)
-                    for (auto n_n:neighbors)
-                        cout << "SRC: "<<target<<" Neighbor: "<<n_n<<endl;*/
-                steps += getLength(target);
-                new_steps += getLength(target);
-                vector<OwnNode_t> neighbors_ordered = vector<OwnNode_t>(neighbors.size(),0);
+                if (cautious_execution && (target == val_node)) {
+                    steps += Parameters::get().kmerSize - 1;
+                    new_steps += Parameters::get().kmerSize - 1;
+                } else {
+                    steps += getLength(target) - Parameters::get().kmerSize + 1;
+                    new_steps += getLength(target) - Parameters::get().kmerSize + 1;
+                }
+                /*<OwnNode_t> neighbors_ordered = vector<OwnNode_t>(neighbors.size(),0);
                 vector<size_t> freqs_ordered = vector<size_t>(neighbors.size(), 0);
                 for (size_t i = 0; i < neighbors_ordered.size();++i)
                 {
-                    size_t higher = 0, pivot = std::abs((float) min_flow - (float) _g_edges_reads[target][i]);
+                    size_t higher = 0, pivot = std::abs((float) _g_nodes[target]._abundance - (float) _g_edges_reads[target][i]);
                     for (size_t j = 0; j < neighbors_ordered.size();++j)
                     {
-                        size_t int_diff = std::abs((float) min_flow - (float) _g_edges_reads[target][j]);
+                        size_t int_diff = std::abs((float) _g_nodes[target]._abundance - (float) _g_edges_reads[target][j]);
                         higher = (pivot > int_diff)?higher + 1: higher;
                     }
                     neighbors_ordered[higher] = neighbors[i];
                     freqs_ordered[higher] = _g_edges_reads[target][i];
-                }
+                }*/
                 branches += (neighbors.size() > 1)?1:0;
                 for (size_t i = 0; i < neighbors.size(); ++i) {
-                    OwnNode_t neigh = neighbors_ordered[i];
+                    OwnNode_t neigh = neighbors[i];
                     if (checked.find(neigh) == checked.end())
                     {
                         if (!swap) {
-                            min_flow = std::min(min_flow, freqs_ordered[i]);
-                            __reach(src, neigh, steps, branches, checked, min_flow);
+                            median_flow.push_back(_g_edges_reads[target][i]);
+                            size_t local_steps = steps;
+                            __reach(src, neigh, local_steps, branches, checked, median_flow, max_flow, min_flow);
                         } else {
-                            new_min_flow = std::min(new_min_flow, freqs_ordered[i]);
-                            __reach(src, neigh, new_steps, new_branches, n_checked, new_min_flow);
+                            if (Parameters::get().debug)
+                                basic_information << endl;
+                            vector<size_t> new_median_flow(1, _g_edges_reads[target][i]);
+                            __reach(src, neigh, new_steps, new_branches, checked, new_median_flow, max_flow, min_flow);
                         }
-                    }
-                }};
-            for (auto pn: union_pei)
-            {
-                for (auto tn: union_pei)
-                {
-                    if (tn == pn)
-                        continue;
-                    if (_reach_e(pn,tn)) {
-                        reached_by[traslation_map[tn]]++;
+                    } else {
                         if (Parameters::get().debug)
-                        {
-                            basic_information << pn << " reachs "<<tn<<endl;
-                            basic_information << Common::return_unitig(sequence_map, _g_nodes[pn]._val)<<" -> "<<Common::return_unitig(sequence_map, _g_nodes[tn]._val)<<endl;
+                            basic_information<<"Node of interest already extended joining both "<<src<<"->"<<neigh<<endl;
+                        sort (median_flow.begin(), median_flow.end());
+                        float flow_expected = Maths::my_round(Maths::median(median_flow), true);
+                        if (READJUST) {
+                            max_flow = (max_flow < flow_expected) ? flow_expected : max_flow;
+                            min_flow = (min_flow > flow_expected) ? flow_expected : min_flow;
+                            flow_expected = abs(strain_freq - flow_expected);
                         }
-                    }
-                    if (_reach(pn,tn)) {
-                        local_graph.addEdge(traslation_map[pn], traslation_map[tn]);
+                        local_graph_2.addEdge(traslation_map[src], traslation_map[neigh], flow_expected);
                     }
                 }
-            }
+            };
             /*
-             * Minimum reached by - to sources
+             * Processing reachability information.
+             * Minimum reached by - to sources (only in no cautious mode) otherwise parent/son as sources
              */
             size_t minimum_reached_by = INF;
-            for (auto pn: union_pei)
-                minimum_reached_by = (reached_by[traslation_map[pn]] < minimum_reached_by)?reached_by[traslation_map[pn]]:minimum_reached_by;
+            if (!cautious_execution)
+            {
+                if (Parameters::get().debug)
+                    basic_information << "Getting reachability information"<<endl;
+                for (auto pn: union_pei) {
+                    for (auto tn: union_pei) {
+                        if (tn == pn)
+                            continue;
+                        if (_reach_e(pn, tn)) {
+                            reached_by[traslation_map[tn]]++;
+                            if (Parameters::get().debug) {
+                                basic_information << pn << " reachs " << tn << " Nodos: " << traslation_map[pn] << "->"
+                                                  << traslation_map[tn] << endl;
+                                basic_information << Common::return_unitig(sequence_map, _g_nodes[pn]._val)
+                                                  << " -> " << Common::return_unitig(sequence_map, _g_nodes[tn]._val)
+                                                  << endl;
+                            }
+                        }
+                        if (_reach(pn, tn)) {
+                            local_graph.addEdge(traslation_map[pn], traslation_map[tn]);
+                        }
+                    }
+                }
+                for (auto pn: union_pei)
+                    minimum_reached_by = (reached_by[traslation_map[pn]] < minimum_reached_by)?reached_by[traslation_map[pn]]:minimum_reached_by;
+                if (Parameters::get().debug)
+                    basic_information << "Minimum reached by: "<< minimum_reached_by<<endl;
+            } else {
+                if (Parameters::get().debug)
+                    basic_information << "Parent/Son as starting points "<<((parent_in_union)?"Parent":"Son")<<endl;
+                reached_by = vector<size_t>(union_pei.size(), INF);
+                minimum_reached_by = 0;
+                if (parent_in_union)
+                    reached_by[traslation_map[val_node]] = minimum_reached_by;
+                else
+                    reached_by[traslation_map[val_neigh]] = minimum_reached_by;
+            }
+
             /*
              * Finding paths
              */
+            if (Parameters::get().debug)
+                basic_information << "Building the network"<<endl;
             for (auto pn:union_pei)
             {
                 size_t steps = 0, branches = 0;
-                if (reached_by[traslation_map[pn]] == minimum_reached_by)
+                unordered_set <OwnNode_t> checked;
+                vector <size_t> median_flow;
+                checked.emplace(pn);
+                if (!cautious_execution) {
+                    if (reached_by[traslation_map[pn]] == minimum_reached_by) {
+                        if (Parameters::get().debug)
+                            basic_information << "NEW LAUNCH" << endl;
+                        __reach(pn, pn, steps, branches, checked, median_flow, max_flow, min_flow);
+                    }
+                } else if (parent_in_union )
                 {
-                    unordered_set<OwnNode_t> checked;
-                    size_t min_flow = INF;
-                    __reach(pn, pn, steps, branches, checked, min_flow);
+                    if (pn == val_node) {
+                        if (Parameters::get().debug)
+                            basic_information << "Launching source (parent): " << pn << endl;
+                        __reach(pn, pn, steps, branches, checked, median_flow, max_flow, min_flow);
+                    }
+                } else if (son_in_union) {
+                    if (pn == val_neigh)
+                    {
+                        if (Parameters::get().debug)
+                            basic_information << "Launching source (neigh): " << pn << endl;
+                        __reach(pn, pn, steps, branches, checked, median_flow, max_flow, min_flow);
+                    }
                 }
+            }
+            if (Parameters::get().debug)
+                basic_information << "Maximum expected flow: "<<max_flow<<" Minimum expected flow: "<<min_flow<<endl;
+            /*
+             * Edge flow readjust
+             */
+            if (READJUST)
+            {
+                if (Parameters::get().debug)
+                {
+                    string graph_file = "debug/"+to_string(_g_nodes[i]._val)+"_"+to_string(_g_nodes[n]._val)+"_graph_prereadjust.txt";
+                    local_graph_2.export_to_graph(sequence_map, graph_file);
+                    basic_information << "Readjusting nodes/edges capacities"<<endl;
+                }
+                local_graph_2.readjust_flow(min_flow, max_flow);
             }
             /*
              * Remove extra edges (cycles)
@@ -432,7 +538,9 @@ void DBG::build_process_cliques(DBG & apdbg,
                 local_graph_2.export_to_graph(sequence_map, graph_file);
             }
             priority_queue<pair<size_t,vector<OwnNode_t>>>
-                                       cliques = local_graph_2.report_min_cost_flow
+                                       cliques;
+            if (local_graph_2.vertices() > 0)
+                cliques = local_graph_2.report_min_cost_flow
                                                (reached_by, _g_edges_reads[i][n_i]
                                                        , Parameters::get().debug,"debug/"+to_string(_g_nodes[i]._val)
                                                        +"_"+to_string(_g_nodes[n]._val)+"_min_cost_flow.txt");
@@ -451,7 +559,7 @@ void DBG::build_process_cliques(DBG & apdbg,
                 max_size = (max_size < top_click.second.size()) ? top_click.second.size() : max_size;
                 cliques_store.push_back(top_click.second);
             }
-            vector<bool> offset_erase, offset_node, offset_neigh;
+            vector<bool> offset_erase;
             for (auto top_click: cliques_store)
             {
                 if (top_click.size() <  SIZE_RELATION*max_size)
@@ -459,7 +567,7 @@ void DBG::build_process_cliques(DBG & apdbg,
                 if (show)
                     paths << "New Clique:" << endl;
                 Pairedendinformation_t clique, p_info_a, p_info_b;
-                bool in_a = false, in_b = false, isa = true, isb = true;
+                bool in_a = false, in_b = false, isa = true, isb = true, parent_in = false, son_in = false;
                 for (auto node: top_click)
                 {
                     nodes_checked.emplace(node);
@@ -471,17 +579,15 @@ void DBG::build_process_cliques(DBG & apdbg,
                             <<":"<<real_node._id<<" "<<Common::return_unitig(sequence_map, real_node._val)<<" ";
 
                     }
+                    if (real_node._val == val_node)
+                        parent_in = true;
+                    if (real_node._val == val_neigh)
+                        son_in = true;
                     if (node_pei.find(real_node._val) != node_pei.end()) {
                         in_a = true;
                         p_info_a.emplace(real_node._val);
                     } else {
                         isa = false;
-                        if (show) {
-                            size_t u = real_node._val;
-                            if (u >= (num_unitigs_fw/2))
-                                u -= (num_unitigs_fw/2);
-                            string seq = sequence_map.at(u);
-                        }
                     }
                     if (neigh_pei.find(real_node._val) != neigh_pei.end()) {
                         in_b = true;
@@ -492,30 +598,48 @@ void DBG::build_process_cliques(DBG & apdbg,
                 if (Parameters::get().debug) {
                     paths << endl;
                     paths << "ISA: "<<isa<<" ISB: "<<isb<<endl;
+                    paths << "INA: "<<in_a<<" INB: "<<in_b<<endl;
                 }
-                bool check_both = true;
-                if (!node_pei.empty() and !neigh_pei.empty())
-                    check_both = false;
-                if (check_both or (in_a && in_b))
+                if (parent_in && son_in) {
+                    if (Parameters::get().debug) {
+                        paths << "Path forced to be added: Contains parent and son" << endl;
+                    }
+                    offset_erase.push_back(false);
+                } else if (cautious_execution)
                 {
-                    /*if ((in_a && in_b) && ((isa || isb) & !(isa && isb)) && !content) {
-                        offset_erase.push_back(true);
-                    } else if (in_a && in_b)
-                        offset_erase.push_back(false);
-                    offset_node.push_back(isa);
-                    offset_neigh.push_back(isb);*/
+                    if (Parameters::get().debug) {
+                        paths << "Path forced to be removed: Parent or son in the union set but not in the path, cannot be a real strain"
+                                << endl;
+                    }
+                    offset_erase.push_back(true);
+                } else {
+                    if (Parameters::get().debug) {
+                        paths << "Standard situation" << endl;
+                        paths << "Both have to provide something to the path: (parent) "<<in_a<<" (son) "<<in_b<<endl;
+                    }
+                        /*if ((in_a && in_b) && ((isa || isb) & !(isa && isb)) && !content) {
+                            offset_erase.push_back(true);
+                        } else if (in_a && in_b)
+                            offset_erase.push_back(false);
+                        offset_node.push_back(isa);
+                        offset_neigh.push_back(isb);*/
                     if (!in_a or !in_b)
                         offset_erase.push_back(true);
                     else
                         offset_erase.push_back(false);
-                    UG_Node parent_l(_g_nodes[i]._val, p_info_a), son_l(_g_nodes[n]._val,p_info_b);
-                    potential_nodes.push_back(pair<UG_Node,UG_Node>(parent_l,son_l));
+                }
+                UG_Node parent_l(_g_nodes[i]._val, p_info_a), son_l(_g_nodes[n]._val, p_info_b);
+                potential_nodes.push_back(pair<UG_Node, UG_Node>(parent_l, son_l));
+                if (Parameters::get().debug) {
+                    paths << "Nodes added as potential ones."<<endl;
+                    paths << parent_l.to_String();
+                    paths << son_l.to_String();
                 }
             }
             /*
              * Procesar las paired-end y eliminar los subconjuntos
              */
-            for (size_t index_s = 0; index_s < potential_nodes.size(); ++index_s)
+            /*for (size_t index_s = 0; index_s < potential_nodes.size(); ++index_s)
             {
                 UG_Node p = potential_nodes[index_s].first, h = potential_nodes[index_s].second;
                 for (size_t index_s_2 = 0; index_s_2 < potential_nodes.size(); ++index_s_2)
@@ -534,8 +658,8 @@ void DBG::build_process_cliques(DBG & apdbg,
                     if (son_ss_2 && !son_ss)
                         offset_erase[index_s] = true;
                 }
-            }
-            if (offset_erase.size() > 1) { //Esto es una nhapa de cuidado
+            }*/
+            if (offset_erase.size() > 1) {
                 /*size_t num_removes = 0;
                 for (size_t it = 0; it < offset_erase.size(); ++it) {
                     if (offset_erase[it]) {
@@ -554,15 +678,28 @@ void DBG::build_process_cliques(DBG & apdbg,
                 if (Parameters::get().debug)
                     paths << "Removing cliques: ";
                 for (size_t pos = 0; pos < offset_erase.size(); pos++) {
-                    if (offset_erase[pos]) {
+                    if (offset_erase[pos])
+                    {
                         if (Parameters::get().debug)
                             paths << " "<<pos;
                         potential_nodes.erase(potential_nodes.begin() + pos - num_removes++);
                     }
                 }
                 if (Parameters::get().debug)
-                    paths << endl<<"Potential nodes: "<<endl;
+                    paths << endl;
             }
+            if (potential_nodes.size() == 0)
+            {
+                if (Parameters::get().debug)
+                {
+                    paths << "No potential nodes, added empty version of both (it only happens when none (parent and son) have paired-end information)"<<endl;
+                }
+                Pairedendinformation_t empty;
+                UG_Node parent_l(_g_nodes[i]._val, empty), son_l(_g_nodes[n]._val,empty);
+                potential_nodes.push_back(pair<UG_Node,UG_Node>(parent_l,son_l));
+            }
+            if (Parameters::get().debug)
+                paths << endl<<"Potential nodes: "<<endl;
             for (auto s: potential_nodes) {
                 if (Parameters::get().debug)
                 {
@@ -571,14 +708,9 @@ void DBG::build_process_cliques(DBG & apdbg,
                 }
                 apdbg.addNode(s.first, s.second, show);
             }
+
             if (Parameters::get().debug) {
-                paths << "Finally cliques to add: " << potential_nodes.size() << endl;
-            }
-            if (potential_nodes.size() == 0)
-            {
-                Pairedendinformation_t empty;
-                UG_Node parent_l(_g_nodes[i]._val, empty), son_l(_g_nodes[n]._val,empty);
-                apdbg.addNode(parent_l, son_l);
+                paths << "Finally cliques to added: " << potential_nodes.size() << endl;
             }
         }
         /*
@@ -609,7 +741,6 @@ size_t DBG::in_degree(OwnNode_t node_id)
 vector<vector<OwnNode_t>> DBG::export_unitigs(const vector<string> & sequence_map, bool show)
 {
     vector<vector<OwnNode_t>> unitigs;
-    vector<vector<OwnNode_t>> vector_unitigs(_g_nodes.size());
     vector<UG_Node> starting_points = _get_starting_nodes();
     queue<UG_Node> extensible_points;
     vector<bool> checked(_g_nodes.size(), false);
@@ -776,6 +907,112 @@ OwnNode_t DBG::_get_possible_extension(OwnNode_t node_id)
     }
     return NO_NEIGH;
 }
+
+vector<vector<OwnNode_t>> DBG::export_unitigs_basic(const vector <string> & sequence_map, bool show)
+{
+    vector<vector<OwnNode_t>> vector_unitigs(_g_nodes.size(),vector<OwnNode_t>());
+    vector<UG_Node> starting_points = _get_starting_nodes_basic();
+    vector<bool> checked(_g_nodes.size(), false);
+    /*
+     * Debugging mode
+     */
+    std::ofstream extension_information;
+    if (Parameters::get().debug)
+    {
+        extension_information.open("debug/extension_information.txt", std::ofstream::out);
+        extension_information << "Getting unitigs from APDBG"<<endl;
+    }
+    for (auto start_point: starting_points)
+    {
+        if (Parameters::get().debug)
+            extension_information << "Extending unitig from: "<<start_point._id<<":"<<start_point._val<<": "<<Common::return_unitig(sequence_map, start_point._val)<<endl;
+        if (checked[start_point._id])
+            continue;
+        _extension_basic(vector_unitigs, start_point, checked, extension_information);
+        if (Parameters::get().debug)
+            extension_information << "End extension"<<endl;
+    }
+    if (Parameters::get().debug)
+        extension_information << "Post-process unitigs"<<endl;
+    vector<vector<OwnNode_t>> continuations(_g_nodes.size(), vector<OwnNode_t>())
+        , predecessors(_g_nodes.size(),vector<OwnNode_t>());
+    for (size_t i = 0; i < vector_unitigs.size(); ++i)
+    {
+        vector<OwnNode_t> unitig = vector_unitigs[i];
+        if (unitig.size() == 0)
+            continue;
+        OwnNode_t last_node = unitig[unitig.size()-1];
+        if (Parameters::get().debug)
+        {
+            extension_information << "Unitig number: " << i << " "
+                                  << Common::return_unitig(sequence_map, _g_nodes[i]._val) << endl;
+            extension_information << "ends with: " << _g_nodes[last_node]._id << " "
+                                  << Common::return_unitig(sequence_map, _g_nodes[last_node]._val) << endl;
+        }
+        vector<OwnNode_t> neighs = getNeighbor(last_node);
+        if (neighs.size() > 1)
+        {
+            OwnNode_t pivot = _g_nodes[neighs[0]]._val;
+            bool same_flag_neigh = true;
+            for (auto n: neighs)
+                same_flag_neigh &= (_g_nodes[n]._val == pivot);
+            if (same_flag_neigh)
+                continuations[i] = neighs;
+            for (auto n:neighs)
+                predecessors[n].push_back(i);
+        }
+    }
+    if (Parameters::get().debug)
+    {
+        extension_information << "So far so good"<<endl;
+        extension_information.close();
+    }
+    return vector_unitigs;
+}
+
+void DBG::_extension_basic(vector<vector<OwnNode_t>> & unitigs, UG_Node node, vector<bool> & checked, std::ofstream & extension_information)
+{
+    /*
+     * Greedy method - continue until outdegree node > 1
+     */
+    vector<OwnNode_t> neighs = getNeighbor(node._id);
+    OwnNode_t parent = NO_NEIGH;
+    vector<OwnNode_t> unitig;
+    unitigs[node._id].push_back(node._id);
+    if (Parameters::get().debug)
+        extension_information << "Unitig: "<<node._id<<":"<<node._val<<"\t";
+    checked[node._id] = true;
+    while (neighs.size() > 0)
+    {
+        parent = _g_nodes[neighs[0]]._id;
+        size_t parent_val = _g_nodes[neighs[0]]._val;
+        neighs = getNeighbor(parent);
+        unitigs[node._id].push_back(parent);
+        if (Parameters::get().debug)
+            extension_information<<parent<<":"<<parent_val<<"("<<neighs.size()<<") ";
+        checked[parent] = true;
+        if (neighs.size() != 1)
+            break;
+    }
+    if (Parameters::get().debug)
+        extension_information << endl;
+}
+
+vector<DBG::UG_Node> DBG::_get_starting_nodes_basic()
+{
+    vector<UG_Node> suspicious_nodes;
+    for (auto i:_g_nodes)
+    {
+        if (in_degree(i._id) == 0)
+            suspicious_nodes.push_back(i);
+        else if (out_degree(i._id) > 1)
+            for (auto n:getNeighbor(i._id))
+                suspicious_nodes.push_back(_g_nodes[n]);
+    }
+    cout << "Starting points: "<<suspicious_nodes.size()<<" Out of: "<<_g_nodes.size()<<endl;
+    return suspicious_nodes;
+}
+
 void DBG::_extension(queue <UG_Node> & queue, vector<bool> & checked, vector <OwnNode_t> & unitig,
         UG_Node node, size_t & higher_out, size_t & zero, size_t & higher_in, size_t & zero_nopair, size_t &solved,
         size_t & repetitive_call, vector<vector<OwnNode_t>> & unitigs, vector<bool> & local_checked, bool show, const vector<string> & sequence_map)
@@ -797,27 +1034,6 @@ void DBG::_extension(queue <UG_Node> & queue, vector<bool> & checked, vector <Ow
         cout << "Paired_end: "<<endl;
         display_container(_g_nodes[node._id]._paired_info);
     }
-    /*if (neighs.size() > 1)
-    {
-        for (auto i: neighs)
-        {
-            if (!checked[_g_nodes[i]._id])
-            {
-                if (out_degree(i) == 1) {
-                    vector <OwnNode_t> uni_save = unitig;
-                    uni_save.push_back(_g_nodes[i]._val);
-                    _extension(queue, checked, uni_save, _g_nodes[i],
-                               higher_out, zero, higher_in, zero_nopair, solved,
-                               repetitive_call, unitigs, local_checked);
-                }else {
-                    vector <OwnNode_t> uni_save = unitig;
-                    uni_save.push_back(_g_nodes[i]._val);
-                    unitigs.push_back(uni_save);
-                    queue.push(_g_nodes[i]);
-                }
-            }
-        }
-    }*/
     while (neighs.size() == 1)
     {
         //cout << "extending path "<<endl;
@@ -893,41 +1109,15 @@ void DBG::_extension(queue <UG_Node> & queue, vector<bool> & checked, vector <Ow
             if (!checked[node._id])
             {
                 cout << "Caso control!"<<endl;
-                //for ()
                 checked[node._id] = true;
                 for (auto i:neighs) {
-                    /*vector<OwnNode_t> unitig_saved = unitig;
-                    _extension(queue, checked, unitig, _g_nodes[i],
-                            higher_out, zero, higher_in, zero_nopair,solved,
-                            repetitive_call, unitigs, local_checked);
-                    unitig = unitig_saved;*/
                     queue.push(_g_nodes[i]);
                 }
             }
         } else {
-            /*cout << "Caso: "<< neighs.size()<<" Paired-end: "<<getPairedEndInformation(node._id).size()<<endl;
-            vector<OwnNode_t> out_neighs = getNeighbor(node._id), in_neighs = getNeighbor(node._id, false);
-            for (auto n:out_neighs)
-                cout << "OUT: "<<n<<" "<<_g_nodes[n]._val<<" ";
-            cout << endl;
-            for (auto n: in_neighs)
-                cout << "IN: "<<n<<" "<<_g_nodes[n]._val<<" ";
-            cout << endl;*/
             if (!checked[node._id]) {
                 queue.push(_g_nodes[node._id]);
-                /*for (auto u: unitig)
-                    cout << " "<<u;
-                cout<<endl;
-                for (auto n:getNeighbor(node._id))
-                    cout << " "<<_g_nodes[n]._id<<" "<<_g_nodes[n]._val;
-                cout << endl;
-                cin.get();*/
             }
-            /*for (auto i:neighs)
-            {
-                if (!checked[i])
-                    queue.push(_g_nodes[i]);
-            }*/
         }
     } else {
         if (neighs.size() > 1)
@@ -980,10 +1170,6 @@ void DBG::_extension(queue <UG_Node> & queue, vector<bool> & checked, vector <Ow
                 for (auto i: neighs)
                     queue.push(_g_nodes[i]);
             }
-            /*for (auto i:neighs) {
-                if (!checked[i])
-                    queue.push(_g_nodes[i]);
-            }*/
         }
         if (neighs.size() == 1)
         {
@@ -999,6 +1185,7 @@ void DBG::_extension(queue <UG_Node> & queue, vector<bool> & checked, vector <Ow
     }
     unitigs.push_back(unitig);
 }
+
 vector<DBG::UG_Node> DBG::_get_starting_nodes()
 {
     vector<UG_Node> suspicious_nodes;
@@ -1006,14 +1193,17 @@ vector<DBG::UG_Node> DBG::_get_starting_nodes()
     {
         if (in_degree(i._id) == 0)
             suspicious_nodes.push_back(i);
-        else if (out_degree(i._id) > 1)
+        else if (out_degree(i._id) > 1) {
+            /*for (auto n: getNeighbor(i._id))
+                suspicious_nodes.push_back(n);*/
             suspicious_nodes.push_back(i);
-        else if (in_degree(i._id) > 1)
+        } else if (in_degree(i._id) > 1)
             suspicious_nodes.push_back(i);
     }
-    cout << "Suspicious starts: "<<suspicious_nodes.size()<<endl;
+    cout << "Starting points: "<<suspicious_nodes.size()<<" Out of: "<<_g_nodes.size()<<endl;
     return suspicious_nodes;
 }
+
 bool DBG::_reach_e(OwnNode_t i, OwnNode_t j)
 {
     return (_reachability[i].find(j) != _reachability[i].end());
@@ -1261,10 +1451,22 @@ void UG::post_process_cycles(vector<size_t> & reached_by, size_t & minimum)
     }
 }
 
+void UG::readjust_flow(float min_flow, float max_flow)
+{
+    for (size_t i = 0; i < _g_freqs.size(); ++i)
+    {
+        for (size_t j = 0; j < _g_freqs[i].size(); ++j) {
+            _g_freqs[i][j] = (max_flow >= _g_freqs[i][j])?max_flow - _g_freqs[i][j] + min_flow:min_flow;
+        }
+        _g_nodes[i].readjustAbundance(min_flow, max_flow);
+    }
+}
+
 void UG::addEdge(OwnNode_t i, OwnNode_t j, size_t cost)
 {
     _num_edges++;
-    if (find(_g_edges[i].begin(), _g_edges[i].end(), j) == _g_edges[i].end())
+    vector<OwnNode_t>::iterator pos_j_in_i = find(_g_edges[i].begin(), _g_edges[i].end(), j);
+    if ( pos_j_in_i == _g_edges[i].end())
     {
         if (!_directed) {
             _g_edges[i].push_back(j);
@@ -1293,6 +1495,10 @@ void UG::addEdge(OwnNode_t i, OwnNode_t j, size_t cost)
                 _g_in_edges[j].push_back(i);
             }
         }
+    } else {
+        size_t index = std::distance(_g_edges[i].begin(), pos_j_in_i);
+        if (_g_freqs[i][index] > cost)
+            _g_freqs[i][index] = cost;
     }
 }
 
@@ -1432,6 +1638,9 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_maximal_cliques(unorde
 
 priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const vector<size_t> & reached_by, size_t max_flow, bool show, string file_name = "")
 {
+    /*
+     * CORREGIR EL FLUJO CABEZON
+     */
     std::ofstream nw_file;
     if (show)
         nw_file.open (file_name,std::ofstream::out);
@@ -1450,29 +1659,30 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
     max_flow = Maths::my_round(max_flow, true);
     Graph l_g, solution_g;
     /*
+     * Solution network containers
+     */
+    Graph::ArcMap<Capacity> available_flow(solution_g);
+    Graph::ArcMap<Graph::Arc> offsetArcToSolutionArc(l_g);
+    Graph::ArcMap<int> arcDirection(l_g);
+    /*
      * Supply map
      */
     Graph::NodeMap<float> supplyMap(l_g);
     vector<Graph::Node> out_nodes;
     vector<std::pair<Graph::Node, Graph::Node>> map_in_out;
     Graph::NodeMap<OwnNode_t> translation_map(l_g), solution_to_ids(solution_g);
-    vector<Graph::Node> offset_to_solution(_num_vertex);
+    vector<Graph::Node> offset_to_solution(_num_vertex+2);
     Graph::Node source = l_g.addNode(), target = l_g.addNode(),
-                s_source = l_g.addNode(), s_target = l_g.addNode(),
-                g_source = l_g.addNode(), g_target = l_g.addNode();
+                s_source = l_g.addNode(), s_target = l_g.addNode();
     /*
-     * Solution source and target (to start and end the traversal)
+     * Extra_ids
      */
-    Graph::Node solution_source = solution_g.addNode(), solution_target = solution_g.addNode();
-    size_t id_source = reached_by.size(), id_target = reached_by.size() + 1;
-    /*
-     * Solution source and target
-     */
-    solution_to_ids[solution_source] = id_source;solution_to_ids[solution_target] = id_target;
+    size_t extra_id = reached_by.size();
+    size_t id_source = extra_id++, id_target = extra_id++, id_s_source = extra_id++, id_s_target = extra_id++;
     // Build the source/sink and synthetic sources and sinks - to avoid infinite and insufficient
     translation_map[source] = id_source; translation_map[target] = id_target;
-    translation_map[g_source] = INF; translation_map[g_target] = INF;
-    translation_map[s_source] = INF; translation_map[s_target] = INF;
+    //translation_map[g_source] = INF; translation_map[g_target] = INF;
+    translation_map[s_source] = id_s_source; translation_map[s_target] = id_s_target;
     /*
      * Out flow and in flow
      */
@@ -1508,6 +1718,8 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
     bool extra_source = (max_flow > max_capacity), extra_target = (max_flow > flow_from_target);
     for (auto n:_g_nodes)
     {
+        if (show)
+            nw_file << "Node: "<<n._id<<" Val: "<<n._val<<endl;
         /*
          * Initialize flow map
          */
@@ -1528,19 +1740,21 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
         supplyMap[in_node] = 0.0;supplyMap[out_node] = 0.0;
         in_flow[n._id] = 0.0;out_flow[n._id] = 0.0;
         //Arc forward - using split into several edges
-        size_t arc_increment = ceil((float) n._abundance / (float) max_granularity);
+        float arc_increment = ceil((float) n._abundance / (float) max_granularity);
         if (show)
             nw_file << "Arc_increment: "<<arc_increment<<" Abundance: "<<n._abundance<<endl;
-        size_t freq = arc_increment * max_granularity;
-        for (size_t i = arc_increment; i <= freq; i += arc_increment)
+        float freq = arc_increment * max_granularity;
+        for (float i = arc_increment; i <= freq; i += arc_increment)
         {
             Graph::Arc a = l_g.addArc(in_node, out_node);
             lowerMap[a] = 0;capacities[a] = arc_increment;true_arcs[a] = false;
             weights[a] = (i == arc_increment)?i/freq:pow((i-arc_increment),2)/freq;
+            if (show)
+                nw_file << " Weight: "<<weights[a]<<endl;
             arc_vector.push_back(a);
         }
         //Arc backward - using split into several edges
-        for (size_t i = arc_increment; i <= freq; i += arc_increment)
+        for (float i = arc_increment; i <= freq; i += arc_increment)
         {
             Graph::Arc a = l_g.addArc(out_node, in_node);
             lowerMap[a] = 0;capacities[a] = arc_increment;true_arcs[a] = false;
@@ -1564,24 +1778,35 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
                 nw_file << "   Neighs: "<<j<<endl;
             auto n = _g_edges[i][j];
             pair<Graph::Node, Graph::Node> n_2 = map_in_out[n];
-            solution_g.addArc(offset_to_solution[i], offset_to_solution[n]);
-            // Forward flow
+
             float pivot_flow_tmp = (float) max_flow / (float)_g_edges[i].size();
-            size_t freq = _g_freqs[i][j];
+            float freq = (float) _g_freqs[i][j];
             freq = (freq == 0)?1:freq;
-            size_t arc_increment = ceil((float) freq / (float) max_granularity);
+            /*
+             * Solution Arc
+             */
+            Graph::Arc solution_arc = solution_g.addArc(offset_to_solution[i], offset_to_solution[n]);
+            available_flow[solution_arc] = freq;
+            float arc_increment = ceil((float) freq / (float) max_granularity);
             freq = arc_increment*max_granularity;
-            for (size_t i = arc_increment; i <= freq; i += arc_increment)
+            // Forward flow
+            for (float i = arc_increment; i <= freq; i += arc_increment)
             {
                 Graph::Arc a = l_g.addArc(n_1.second, n_2.first);
+                offsetArcToSolutionArc[a] = solution_arc;
+                arcDirection[a] = 1;
                 lowerMap[a] = 0;capacities[a] = arc_increment;true_arcs[a] = true;
                 weights[a] = (i == arc_increment)?i/freq:pow((i-arc_increment),2)/freq;
+                if (show)
+                    nw_file << " Weight: "<<weights[a]<<endl;
                 arc_vector.push_back(a);
             }
             // Backward flow
-            for (size_t i = arc_increment; i <= freq; i += arc_increment)
+            for (float i = arc_increment; i <= freq; i += arc_increment)
             {
                 Graph::Arc a = l_g.addArc(n_2.first, n_1.second);
+                offsetArcToSolutionArc[a] = solution_arc;
+                arcDirection[a] = -1;
                 lowerMap[a] = 0;capacities[a] = arc_increment;true_arcs[a] = true;
                 weights[a] = (i == arc_increment)?i/freq:pow((i-arc_increment),2)/freq;
                 arc_vector.push_back(a);
@@ -1592,52 +1817,31 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
         }
         float in_distribution = (float) Maths::my_round(in_flow[i], true) / (float) _g_edges[i].size();
         size_t diff = std::abs((float) _g_nodes[i]._abundance - (float) in_flow[i]);
+        // Edge from new source to previous sources null cost and infinite capacity
         if (reached_by[i] == 0)
         {
-            // Forward flow
-            solution_g.addArc(solution_source,offset_to_solution[i]);
-            size_t arc_increment = ceil((float) _g_nodes[i]._abundance / (float) max_granularity);
-            float freq = arc_increment * max_granularity;
-            for (size_t i = arc_increment; i <= freq ; i += arc_increment)
-            {
-                Graph::Arc a = l_g.addArc(source, n_1.first);
-                lowerMap[a] = 0;capacities[a] = arc_increment;true_arcs[a] = false;
-                weights[a] = (i == arc_increment)?i/freq:pow((i-arc_increment),2)/freq;
-                arc_vector.push_back(a);
-            }
-            // Backward flow
-            for (size_t i = arc_increment; i <= freq; i += arc_increment)
-            {
-                Graph::Arc a = l_g.addArc(n_1.first, source);
-                lowerMap[a] = 0;capacities[a] = arc_increment;true_arcs[a] = false;
-                weights[a] = (i == arc_increment)?i/freq:pow((i-arc_increment),2)/freq;
-                arc_vector.push_back(a);
-            }
-            in_flow[id_source] += _g_nodes[i]._abundance;
-            out_flow[i] += _g_nodes[i]._abundance;
+            //solution_g.addArc(solution_source,offset_to_solution[i]);
+            // Forward Flow
+            Graph::Arc a = l_g.addArc(source, n_1.first);
+            lowerMap[a] = 0;capacities[a] = INF;weights[a] = 0;true_arcs[a] = false;
+            arc_vector.push_back(a);
+            // Backward Flow
+            a = l_g.addArc(n_1.first, source);
+            lowerMap[a] = 0; capacities[a] = INF; weights[a] = 0;true_arcs[a] = false;
+            arc_vector.push_back(a);
         }
+        // Edge from previous targets to new target with null cost and infinite capacity
         if (_g_edges[i].size() == 0 /*|| diff > in_distribution*/)
         {
-            solution_g.addArc(offset_to_solution[i], solution_target);
-            size_t arc_increment = ceil((float) _g_nodes[i]._abundance / (float) max_granularity);
-            float freq = arc_increment * max_granularity;
-            for (size_t i = arc_increment; i <= freq ; i += arc_increment)
-            {
-                Graph::Arc a = l_g.addArc(n_1.second, target);
-                lowerMap[a] = 0;capacities[a] = arc_increment;true_arcs[a] = false;
-                weights[a] = (i == arc_increment)?i/freq:pow((i-arc_increment),2)/freq;
-                arc_vector.push_back(a);
-            }
-            // Backward flow
-            for (size_t i = arc_increment; i <= freq ; i += arc_increment)
-            {
-                Graph::Arc a = l_g.addArc(target, n_1.second);
-                lowerMap[a] = 0;capacities[a] = arc_increment;true_arcs[a] =false;
-                weights[a] = (i == arc_increment)?i/freq:pow((i-arc_increment),2)/freq;
-                arc_vector.push_back(a);
-            }
-            in_flow[i] += _g_nodes[i]._abundance;
-            out_flow[id_target] += _g_nodes[i]._abundance;
+            //solution_g.addArc(offset_to_solution[i], solution_target);
+            // Forward Flow
+            Graph::Arc a = l_g.addArc(n_1.second, target);
+            lowerMap[a] = 0; capacities[a] = INF;weights[a] = 0;true_arcs[a] = false;
+            arc_vector.push_back(a);
+            // Backward Flow
+            a = l_g.addArc(target, n_1.second);
+            lowerMap[a] = 0; capacities[a] = INF; weights[a] = 0; true_arcs[a] = false;
+            arc_vector.push_back(a);
         }
         if (show)
             nw_file << "Node: "<<_g_nodes[i]._val<<" Id: "<<i<<" Reached by: "<<reached_by[i]<<" Neighs: "<<_g_edges[i].size()<<endl;
@@ -1686,27 +1890,35 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
         if (show)
         {
             nw_file << "Node: "<<_g_nodes[k_v.first]._val<<" In flow: "<<k_v.second<<" Out flow: "<<out_flow[k_v.first]<<" Id: "<<k_v.first<<endl;
-            nw_file << "Exogenous flow in: " << exogenous_flow_in << " Exogenous flow out: " << exogenous_flow_out << endl;
+            nw_file << "Exogenous flow in: " << exogenous_flow_in << " Exogenous flow out: " << exogenous_flow_out << " Abundance: "<<ab<< endl;
         }
         if (exogenous_flow_in < 0)
         {
-            Graph::Arc a = l_g.addArc(s_source, map_in_out[k_v.first].second);
+            if (show)
+                nw_file << "    From s* to OutNode "<<(-exogenous_flow_in)<<endl;
+            Graph::Arc a = l_g.addArc(s_source, map_in_out[k_v.first].second);true_arcs[a] = false;
             lowerMap[a] = -exogenous_flow_in;capacities[a] = - exogenous_flow_in;weights[a] = 0;
             supply_source_s += (-exogenous_flow_in);
         } else if (exogenous_flow_in > 0)
         {
-            Graph::Arc a = l_g.addArc(map_in_out[k_v.first].second, s_target);
+            if (show)
+                nw_file << "    From OutNode to t* "<<exogenous_flow_in<<endl;
+            Graph::Arc a = l_g.addArc(map_in_out[k_v.first].second, s_target);true_arcs[a] = false;
             lowerMap[a] = exogenous_flow_in;capacities[a] = exogenous_flow_in;weights[a] = 0;
             supply_sink_s += exogenous_flow_in;
         }
         if (exogenous_flow_out < 0)
         {
-            Graph::Arc a = l_g.addArc(map_in_out[k_v.first].first, s_target);
+            if (show)
+                nw_file << "    From InNode to t* "<<(-exogenous_flow_out)<<endl;
+            Graph::Arc a = l_g.addArc(map_in_out[k_v.first].first, s_target);true_arcs[a] = false;
             lowerMap[a] = -exogenous_flow_out;capacities[a] = -exogenous_flow_out;weights[a] = 0;
             supply_sink_s += (-exogenous_flow_out);
         } else if (exogenous_flow_out > 0)
         {
-            Graph::Arc a = l_g.addArc(s_source, map_in_out[k_v.first].first);
+            if (show)
+                nw_file << "    From s* to InNode "<<exogenous_flow_out<<endl;
+            Graph::Arc a = l_g.addArc(s_source, map_in_out[k_v.first].first);true_arcs[a] = false;
             lowerMap[a] = exogenous_flow_out;capacities[a] = exogenous_flow_out;weights[a] = 0;
             supply_source_s += exogenous_flow_out;
         }
@@ -1714,12 +1926,12 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
     /*
      * Exogenous flow from sources to s_star and target to s_star
      */
-    Graph::Arc a = l_g.addArc(source, s_target);
-    lowerMap[a] = in_flow[id_source];capacities[a] = in_flow[id_source];weights[a] = 0;
+    /*Graph::Arc a = l_g.addArc(source, s_target);
+    lowerMap[a] = in_flow[id_source];capacities[a] = in_flow[id_source];weights[a] = 0;true_arcs[a] = false;
     supply_sink_s += in_flow[id_source];
     a = l_g.addArc(s_source, target);
-    lowerMap[a] = out_flow[id_target];capacities[a] = out_flow[id_target];weights[a] = 0;
-    supply_source_s += out_flow[id_target];
+    lowerMap[a] = out_flow[id_target];capacities[a] = out_flow[id_target];weights[a] = 0;true_arcs[a] = false;
+    supply_source_s += out_flow[id_target];*/
     if (show)
         nw_file <<"End sources supply: (supply source*)"<<supply_source_s<<" (supply sink*)"<<supply_sink_s<<endl;
     /*
@@ -1733,14 +1945,10 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
                 nw_file << "From: "<<translation_map[l_g.source(a)]<<" to "<<translation_map[l_g.target(a)]<<" "<<capacities[a]<<endl;
         }
     }
-    a = l_g.addArc(g_source, source);
-    lowerMap[a] = 0;capacities[a] = INF;weights[a] = 0;
-    a = l_g.addArc(target, g_target);
-    lowerMap[a] = 0;capacities[a] = INF;weights[a] = 0;
     /*
-     * Edge from global sink to source
+     * Edge from sink to source
      */
-    a = l_g.addArc(g_target, g_source);
+    Graph::Arc a = l_g.addArc(target, source);
     lowerMap[a] = 0;capacities[a] = INF;weights[a] = 0;
     arc_vector.push_back(a);
 
@@ -1754,103 +1962,35 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
     NS::ProblemType status = ns.run(NS::BLOCK_SEARCH);
     switch (status) {
         case NS::INFEASIBLE:
-            cerr << "insufficient flow" << endl;
+            cerr << "Infeasible flow" << endl;
             exit(1);
             break;
         case NS::OPTIMAL:
             ns.flowMap(flows);
             if (show)
                 nw_file << "Cost: "<<ns.totalCost()<<endl;
-            ArcMap<Capacity> available_flow(solution_g);
-            Graph::NodeMap<Capacity> flow_sources(solution_g);
-            for (Graph::NodeIt n(l_g); n != INVALID; ++n)
+            for (Graph::ArcIt a(l_g); a != INVALID; ++a)
             {
-                OwnNode_t real_id = translation_map[n];
-                if (real_id == INF || real_id == id_source || real_id == id_target)
-                    continue;
-                if (out_nodes[real_id] != n)
-                    continue;
                 if (show)
-                    nw_file <<"Node: "<<translation_map[n] <<endl;
-                bool is_source = (sources_set.find(translation_map[n]) != sources_set.end()),
-                        is_target = (targets_set.find(translation_map[n]) != targets_set.end());
-                vector<float> tmp_vect(_num_vertex,0);
-                Capacity cum_flow_in = 0.0, cum_flow_out = 0.0, cum_flow = 0.0;
-                // Flow x*_vu
-                for (Graph::InArcIt a(l_g, n); a != INVALID; ++a)
-                {
-                    if (show)
-                        nw_file << "Source: "<<translation_map[l_g.source(a)]<<" Capacity: "<<capacities[a]<<" Flow: "<<ns.flow(a)<<endl;
-                    if ((is_source || is_target) && translation_map[l_g.source(a)] == translation_map[l_g.target(a)]) {
-                        cum_flow_in += (capacities[a] - ns.flow(a));
-                        continue;
-                    }
-                    if (translation_map[l_g.source(a)] == id_target)
-                        continue;
-                    if (translation_map[l_g.source(a)] == INF)
-                        continue;
-                    tmp_vect[translation_map[l_g.source(a)]] += (capacities[a] - ns.flow(a));
-                }
-                // Flow x*_uv
-                for (Graph::OutArcIt a(l_g, n); a != INVALID; ++a)
-                {
-                    if (show)
-                        nw_file << "Target: "<<translation_map[l_g.target(a)]<<" Capacity: "<<capacities[a]<<" Flow: "<<ns.flow(a)<<endl;
-                    if ((is_source || is_target) && translation_map[l_g.source(a)] == translation_map[l_g.target(a)]) {
-                        cum_flow_out += (capacities[a] - ns.flow(a));
-                        continue;
-                    }
-                    if (!true_arcs[a]) {
-                        continue;
-                    }
-                    if (translation_map[l_g.target(a)] == id_target)
-                        continue;
-                    if (translation_map[l_g.target(a)] == INF)
-                        continue;
-                    tmp_vect[translation_map[l_g.target(a)]] += (ns.flow(a));
-                }
-                cum_flow = std::min(cum_flow_in, cum_flow_out);
-                Graph::Node src = offset_to_solution[translation_map[n]];
-                for (Graph::OutArcIt a(solution_g, src); a != INVALID; ++a) {
-                    if (solution_g.target(a) == solution_target) {
-                        if (show)
-                            nw_file << "Target: "<<translation_map[n]<<" flow: "<<cum_flow<<endl;
-                        available_flow[a] = cum_flow;
-                    } else if (tmp_vect[solution_to_ids[solution_g.target(a)]] != 0) {
-                        available_flow[a] = tmp_vect[solution_to_ids[solution_g.target(a)]];
-                        if (show) {
-                            nw_file << "From: " << solution_to_ids[solution_g.source(a)] << " To: "
-                                 << solution_to_ids[solution_g.target(a)] << " Flow: " << available_flow[a] << endl;
-                        }
-
-                    }
-                }
-                if (is_source) {
-                    if (cum_flow != 0) {
-                        if (show)
-                            nw_file << "Source: "<<translation_map[n]<<" flow: "<<cum_flow<<endl;
-                        flow_sources[offset_to_solution[translation_map[n]]] = cum_flow;
-                    }
-                }
+                    nw_file << "Source: "<<translation_map[l_g.source(a)]<<" to: "
+                        <<translation_map[l_g.target(a)]<<" Flow: "<<ns.flow(a)<<" Solution edge: "<<true_arcs[a]<<endl;
+                if (true_arcs[a])
+                    available_flow[offsetArcToSolutionArc[a]] += (ns.flow(a) * arcDirection[a]);
             }
             /*
              * Flow from solution source to sources
              */
             if (show)
                 nw_file<<"Available flow:"<<endl;
-            for (Graph::OutArcIt a(solution_g, solution_source); a != INVALID; ++a)
-            {
-                available_flow[a] = flow_sources[solution_g.target(a)];
-            }
             for (Graph::ArcIt n(solution_g); n != INVALID; ++n)
                 if (show)
-                    nw_file << solution_to_ids[solution_g.source(n)] <<" -> "<<solution_to_ids[solution_g.target(n)]<<" "<<flow_sources[solution_g.target(n)]<<endl;
+                    nw_file << solution_to_ids[solution_g.source(n)] <<" -> "<<solution_to_ids[solution_g.target(n)]<<" "<<available_flow[n]<<endl;
             if (show)
                 nw_file << endl;
             if (show)
                 nw_file << "End available flow"<<endl;
             std::function<void(Graph::Node, vector<Graph::Arc>&, float&)> __flow_to_path =
-                    [this,& __flow_to_path,& solution_g, &available_flow, &solution_target, &nw_file,&solution_to_ids](Graph::Node src,
+                    [this,& __flow_to_path,& solution_g, &available_flow, &targets_set, &nw_file,&solution_to_ids](Graph::Node src,
                             vector<Graph::Arc> & cur_path, float & it_max_flow)->void {
                 float max_flow = -INF;
                 Graph::Arc selected;
@@ -1864,38 +2004,59 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
                         selected = a;
                     }
                 }
-                if (solution_g.target(selected) == solution_target)
-                {
-                    cur_path.push_back(selected);
-                    return;
-                }
                 if (max_flow == -INF)
                     return;
                 if (max_flow != 0)
-                    it_max_flow = (it_max_flow < max_flow)?it_max_flow:max_flow;
+                    it_max_flow = (max_flow < it_max_flow) ? max_flow : it_max_flow;
+                if (targets_set.find(solution_to_ids[solution_g.target(selected)]) != targets_set.end())
+                {
+                    cur_path.push_back(selected);
+
+                    return;
+                }
                 cur_path.push_back(selected);
                 __flow_to_path(solution_g.target(selected),cur_path, it_max_flow);
             };
             /*
              * Flow to paths
              */
-            while(true) {
+            unordered_set<OwnNode_t> sources_added;
+            while(true)
+            {
                 vector <Graph::Arc> cur_path;
                 Graph::Arc selected;
                 float flow = -INF;
-                for (Graph::OutArcIt a(solution_g, solution_source); a != INVALID; ++a) {
-                    float study_flow = available_flow[a];
-                    if (study_flow > flow) {
-                        flow = study_flow;
-                        selected = a;
+                nw_file << "Getting source with highest flow (swag :P): "<<endl;
+                for (auto s: sources_set)
+                {
+                    Graph::Node source_node = offset_to_solution[s];
+                    Graph::OutArcIt a(solution_g, source_node);
+                    if (a == INVALID && sources_added.find(s) == sources_added.end())
+                    {
+                        vector <OwnNode_t> real_path(1,s);
+                        result_paths.push({0,real_path});
+                        sources_added.emplace(s);
+                        if (show)
+                            nw_file << "Source added: "<<s<<endl;
                     }
-                }
-                if (show) {
-                    nw_file << "Selected " << flow << " From: " << "solution source to "
-                         << solution_to_ids[solution_g.target(selected)] << endl;
+                    if (show)
+                        nw_file << " Source: "<<s<<endl;
+                    for (Graph::OutArcIt a(solution_g, source_node); a != INVALID; ++a) {
+                        float study_flow = available_flow[a];
+                        if (show)
+                            nw_file << " -> "<< solution_to_ids[solution_g.target(a)]<<"   Flow:  "<<study_flow<<endl;
+                        if (study_flow > flow) {
+                            flow = study_flow;
+                            selected = a;
+                        }
+                    }
                 }
                 if (flow == 0 || flow == -INF)
                     break;
+                if (show) {
+                    nw_file << "And the winner is... " << flow << " From: " << solution_to_ids[solution_g.source(selected)]<<" "
+                         << solution_to_ids[solution_g.target(selected)] << endl;
+                }
                 cur_path.push_back(selected);
                 __flow_to_path(solution_g.target(selected), cur_path, flow);
                 if (show)
@@ -1904,18 +2065,18 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
                 for (size_t i_p = 0; i_p < cur_path.size(); i_p++) {
                     available_flow[cur_path[i_p]] = (available_flow[cur_path[i_p]] - flow < 0) ? 0 :
                                                     available_flow[cur_path[i_p]] - flow;
-                    if (solution_g.source(cur_path[i_p]) == solution_source)
-                        continue;
                     if (show) {
                         nw_file << "From: " << solution_to_ids[solution_g.source(cur_path[i_p])] << " to "
                              << solution_to_ids[solution_g.target(cur_path[i_p])] << endl;
                     }
                     real_path.push_back(solution_to_ids[solution_g.source(cur_path[i_p])]);
+                    if (i_p == cur_path.size() - 1)
+                        real_path.push_back(solution_to_ids[solution_g.target(cur_path[i_p])]);
                 }
                 if (flow >= MIN_FLOW_PATH)
                 {
                     if (show)
-                        nw_file << "Adding path!"<<endl;
+                        nw_file << "New path with "<<flow<<" flow."<<endl;
                     result_paths.push(pair<size_t, vector < OwnNode_t >>(flow, real_path));
                 }
             }

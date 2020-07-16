@@ -86,6 +86,15 @@ struct Maths{
         }
         return container[index];
     }
+
+    /*
+     * Median
+     */
+    template<typename T>
+    static T median(vector<T> container)
+    {
+        return container[ceil((float) container.size() * 0.5)-1];
+    }
 };
 
 

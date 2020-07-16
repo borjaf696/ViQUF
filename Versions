@@ -35,10 +35,16 @@ Version actual:
         - Fijado un flujo de 30 mínimo para poder obtener un camino.
         - Dados todos los nodos potenciales - eliminar aquellos cuya PE sea subconjunto de otra (no hacer la unión que puede no tener sentido)
         **** Polishing **** CUIDADO ESTO ESTÁ SIENDO TESTEADO
-        - Saltar nodos con frecuencia < del I_quantile al 5%
-        - Saltar nodos con frecuencia < del LCL (al 5% para sintéticos pendiente en datos reales)
-        - Saltar emparejamientos < del LCL y > UCL
-        - Pensar en como calcular el LCL (para datos reales)
+            - Saltar nodos con frecuencia < del I_quantile al 5%
+            - Saltar nodos con frecuencia < del LCL (al 5% para sintéticos pendiente en datos reales)
+            - Saltar emparejamientos < del LCL y > UCL
+            - Pensar en como calcular el LCL (para datos reales)
+            *** Paired-end reads ***
+                - Polishing las paired-end evitando enlaces con frecuencia = 1.
+                    * Buscaremos pues enlaces que vengan dados por más de una lectura.
+                    * Bitvector de 2^30 bits que mira bit_vector[(unitigs_left << 15 | unitig_right)] = 1:
+                        * Si vale 0 -> se pone a 1
+                        * Si vale 1 -> se añade el par (en una misma lectura si se ha puesto a 1 no se pone más veces)
 
         **** Grafo de redes de flujo ****
         - Corrección por ciclos - restar el número mínimo de alcances para poner valor 0 en reached_by
@@ -48,6 +54,22 @@ Version actual:
         - Detección de enlaces erróneos - untigs que son alcanzados pero no deberían:
             + Obtener por cuantos es alcanzado y a cuantos alcanza cada nodo.
             + Sumarlos y verificar que existe un patrón.
-
+        - Flow to paths:
+            + Alcanzar el flujo - es decir convertir el flujo íntegramente en caminos
+            + Haber recorrido todos los nodos (path cover)
+        - Offset network flow to solution flow:
+            + Available_flow[(x,y)] + Offset_flow(y,x) - Offset_flow(x,y)
+        - Cambiar a la versión de aristas con capacidad 1 tantas como flujo (máximo flujo en las aristas) e incorporar
+            + coste = (f(i) - f(i-1))^exponent
+            + coste(1) = f(1*roundingBase / freq)^2, en nuestro caso roundingBase es 100 /no lo veo
+        - Opción B:
+            + Usar flujo reajustado - usar la frecuencia entre (A,B) reajustar el flujo como:
+                * max_freq - abs(freq(A,B) - freq(p_a,p_b)) (manejado por READJUST) - TODO: Mirar si se están cogiendo bien los valores (en el orden adecuado)
         *** Preprocesado ***
         - Se ha incluido la versión del knee (Elbow) para el cálculo conservador del límite.
+
+        **** Construcción del grafo ****
+        - Usar la mediana + seleccionar el nodo más cercano a la abundancia del nodo evaluado.
+        - ¿Que pasa si Node/Neigh pertenecen al propio union_set? Pues obviamente si se construye algún camino sin ellos estos no pueden pertenecer a la misma hebra.
+        - Matiz adicional: si un unitig pertenece a union_set entonces hay que tener cuidado por que va a ser probablemente un origen + no se puede contar su longitud íntegra
+        - Por que no directamente los nodos Node/Neigh como parte de la información de emparejados?
