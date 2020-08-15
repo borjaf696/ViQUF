@@ -45,18 +45,26 @@ Version actual:
                     * Bitvector de 2^30 bits que mira bit_vector[(unitigs_left << 15 | unitig_right)] = 1:
                         * Si vale 0 -> se pone a 1
                         * Si vale 1 -> se añade el par (en una misma lectura si se ha puesto a 1 no se pone más veces)
+                        * REVISAR ESTO
+                    * Bloom filter? - Opción de implementación contar hasta n usando un bloom filter. Reservamos 1 Gb con 2^30 posiciones misma metodología.
+                    Pasamos solo aquellos que superen cierto valor umbral.
 
         **** Grafo de redes de flujo ****
         - Corrección por ciclos - restar el número mínimo de alcances para poner valor 0 en reached_by
             + Corregido:
                 * Seleccionamos la arista de mayor flujo como norma
                 * Se seleccionan los caminos con número mínimo de veces alcanzado
+            + Corrección del grafo:
+                * Si el "flujo" entrante y saliente de un nodo es 1.X veces más pequeño o más grande que el flujo que transita el nodo
+                entonces el flujo del nodo se ve modificado al máximo de [in_flow, out_flow]
         - Detección de enlaces erróneos - untigs que son alcanzados pero no deberían:
             + Obtener por cuantos es alcanzado y a cuantos alcanza cada nodo.
             + Sumarlos y verificar que existe un patrón.
         - Flow to paths:
             + Alcanzar el flujo - es decir convertir el flujo íntegramente en caminos
             + Haber recorrido todos los nodos (path cover)
+            + Obtener el flujo esperado entre A-B (como la frecuencia de la arista) y no añadir los caminos una vez alcanzado el flujo esperado (el flujo esperado
+            según nuestra nueva aproximación es el flujo (sin ajustar) de las aristas)
         - Offset network flow to solution flow:
             + Available_flow[(x,y)] + Offset_flow(y,x) - Offset_flow(x,y)
         - Cambiar a la versión de aristas con capacidad 1 tantas como flujo (máximo flujo en las aristas) e incorporar
@@ -65,11 +73,14 @@ Version actual:
         - Opción B:
             + Usar flujo reajustado - usar la frecuencia entre (A,B) reajustar el flujo como:
                 * max_freq - abs(freq(A,B) - freq(p_a,p_b)) (manejado por READJUST) - TODO: Mirar si se están cogiendo bien los valores (en el orden adecuado)
+                * Nueva corrección - normalización del flujo en la red: New_max*(abs(val-max))/max+New_min
         *** Preprocesado ***
         - Se ha incluido la versión del knee (Elbow) para el cálculo conservador del límite.
 
         **** Construcción del grafo ****
-        - Usar la mediana + seleccionar el nodo más cercano a la abundancia del nodo evaluado.
+        - Usar la mediana + seleccionar el nodo más cercano a la abundancia del nodo evaluado. - Pasamos al mínimo en lugar de mediana
         - ¿Que pasa si Node/Neigh pertenecen al propio union_set? Pues obviamente si se construye algún camino sin ellos estos no pueden pertenecer a la misma hebra.
         - Matiz adicional: si un unitig pertenece a union_set entonces hay que tener cuidado por que va a ser probablemente un origen + no se puede contar su longitud íntegra
         - Por que no directamente los nodos Node/Neigh como parte de la información de emparejados?
+        - Añadidos además los nodos intermedios de entrada como fake nodes -> estos no se tendrán en cuenta en la incorporación de los caminos pero si como posibles constructores
+        de los mismos. La idea es quedarnos con los legítimos esquivando los falsos. (__reach incorpora in_nodes y se maneja con true_nodes)

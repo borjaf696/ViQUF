@@ -4,6 +4,9 @@
 
 #ifndef VIADBG_TRIAL_EXTRA_H
 #define VIADBG_TRIAL_EXTRA_H
+
+// For viral data it must be higher (100) for meta try lower
+#define MARGIN 100
 /*
  * Parameters
  */
@@ -41,16 +44,29 @@ struct Parameters
             Parameters::get().gfa = param;
         if (param_read == "debug")
             Parameters::get().debug = param;
+        if (param_read == "greedy")
+            Parameters::get().greedy = param;
     }
     double missmatches;
     size_t genome_size = 0;
     double num_unique_kmers = 0;
     size_t accumulative_h = 0;
     bool full_info = false, metagenomic = false,
-            postProcess = false, remove_duplicates = true, polish = true, gfa = false, debug = false;
+            postProcess = false, remove_duplicates = true, polish = true, gfa = false, debug = false, greedy = false;
     size_t kmerSize;
     size_t numThreads;
     bool show = false;
+};
+/*
+ * Containers operations
+ */
+struct Op_Container{
+    template<typename T>
+    static void join_containers(vector<T> & src, const vector<T> & target)
+    {
+        for (auto s: target)
+            src.push_back(s);
+    }
 };
 /*
  * Maths operations
@@ -61,12 +77,11 @@ struct Maths{
     static T my_round(T value, bool up = false)
     {
         float result = value, first_val = 1, jump = 10;
-        while (result > 1.0)
+        while (result > MARGIN)
         {
             first_val *= jump;
             result = value / first_val;
         }
-        first_val /= jump;
         return ((!up)?floor(value / first_val):ceil(value/first_val)) * first_val;
     }
 

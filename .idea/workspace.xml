@@ -16,8 +16,8 @@
       <change beforePath="$PROJECT_DIR$/lib/extra/extra.h" beforeDir="false" afterPath="$PROJECT_DIR$/lib/extra/extra.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/graph/graph.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/lib/graph/graph.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/graph/graph.h" beforeDir="false" afterPath="$PROJECT_DIR$/lib/graph/graph.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/send" beforeDir="false" afterPath="$PROJECT_DIR$/send" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/test-meta.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-meta.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test/testBcalm.py" beforeDir="false" afterPath="$PROJECT_DIR$/test/testBcalm.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -104,7 +104,7 @@
       <workItem from="1592758190421" duration="81529000" />
       <workItem from="1593933889077" duration="53435000" />
       <workItem from="1594464256123" duration="1800000" />
-      <workItem from="1594700261876" duration="21129000" />
+      <workItem from="1594700261876" duration="106019000" />
     </task>
     <servers />
   </component>
@@ -124,13 +124,9 @@
       <screen x="67" y="27" width="1853" height="948" />
     </state>
     <state x="647" y="118" width="683" height="764" key="com.intellij.openapi.editor.actions.MultiplePasteAction$ClipboardContentChooser/67.27.1853.948@67.27.1853.948" timestamp="1592553214873" />
-    <state x="654" y="225" width="680" height="712" key="run.anything.popup" timestamp="1586284990985">
+    <state x="656" y="230" width="672" height="697" key="search.everywhere.popup" timestamp="1595409422893">
       <screen x="67" y="27" width="1853" height="948" />
     </state>
-    <state x="654" y="225" width="680" height="712" key="run.anything.popup/67.27.1853.948@67.27.1853.948" timestamp="1586284990985" />
-    <state x="656" y="230" width="672" height="697" key="search.everywhere.popup" timestamp="1593014956663">
-      <screen x="67" y="27" width="1853" height="948" />
-    </state>
-    <state x="656" y="230" width="672" height="697" key="search.everywhere.popup/67.27.1853.948@67.27.1853.948" timestamp="1593014956663" />
+    <state x="656" y="230" width="672" height="697" key="search.everywhere.popup/67.27.1853.948@67.27.1853.948" timestamp="1595409422893" />
   </component>
 </project>

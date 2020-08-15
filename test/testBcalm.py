@@ -28,12 +28,17 @@ class RepresentantGraph:
     class GraphStruct:
         def __init__(self):
             self._graph = dict()
+            self._freqs = dict()
 
         def addVertex(self, u):
             self._graph[u] = []
+            self._freqs[u] = 0
 
         def addEdge(self, u, v):
             self._graph[u].append(v)
+
+        def addFreq(self, u, frec):
+            self._freqs[u] = frec
 
         def exportGraph(self, outputFile):
             with open(outputFile, 'w+') as fWrite:
@@ -43,7 +48,7 @@ class RepresentantGraph:
                     fWrite.write(str(key)+' ')
                     for v in val:
                         fWrite.write(str(v)+' ')
-                    fWrite.write('\n')
+                    fWrite.write(str(self._freqs[key])+' \n')
 
     def __init__(self, path = None, kmerSize = 30, abundanceMin = 1):
         self._g, self._kmerSize = self.GraphStruct(), int(kmerSize)
@@ -90,10 +95,13 @@ class RepresentantGraph:
     def __indexGFA(self, file):
         numSeqs, min, max = 0, 9999999, 0
         histogram = [0]*10000
+        frecs = []
         with open(file, 'r') as f:
             for line in f.readlines():
                 if line[0] == 'S':
-                    dnaSeq = line.split('\t')[2]
+                    line_split = line.split('\t')
+                    dnaSeq = line_split[2]
+                    frecs.append(line_split[5].split(':')[2].strip())
                     unitigLength, pivote = len(dnaSeq), int(len(dnaSeq)/2)
                     self.seqs.append(Seq(dnaSeq[pivote:pivote+self._kmerSize], generic_dna))
                     numSeqs += 1
@@ -110,6 +118,10 @@ class RepresentantGraph:
             self._unitigs = numSeqs
             for i in range(0,2*numSeqs):
                 self._g.addVertex(i)
+                if i >= numSeqs:
+                    self._g.addFreq(i, frecs[i - numSeqs])
+                else:
+                    self._g.addFreq(i, frecs[i])
         with open(file, 'r') as f:
             for line in f.readlines():
                 if line[0] == 'L':

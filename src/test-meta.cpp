@@ -246,10 +246,10 @@ void _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_m
             } else {
                 if (quantity != 0 && cur_unitig_left != NO_NEIGH)
                 {
-                    g.add_read(cur_unitig_left, quantity);
+                    //g.add_read(cur_unitig_left, quantity);
                     size_t cur_rev_comp = (cur_unitig_left >= total_unitigs / 2) ?
                                           cur_unitig_left - total_unitigs / 2 : cur_unitig_left + total_unitigs / 2;
-                    g.add_read(cur_rev_comp, quantity);
+                    //g.add_read(cur_rev_comp, quantity);
                 }
                 cur_unitig_left = NO_NEIGH;
                 quantity = 1;
@@ -257,10 +257,10 @@ void _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_m
             }
         }
         if (quantity != 0 && cur_unitig_left != NO_NEIGH) {
-            g.add_read(cur_unitig_left, quantity);
+            //g.add_read(cur_unitig_left, quantity);
             size_t cur_rev_comp = (cur_unitig_left >= total_unitigs / 2) ?
                                   cur_unitig_left - total_unitigs / 2 : cur_unitig_left + total_unitigs / 2;
-            g.add_read(cur_rev_comp, quantity);
+            //g.add_read(cur_rev_comp, quantity);
         }
     }
     auto end = chrono::steady_clock::now();
@@ -268,7 +268,11 @@ void _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_m
          << chrono::duration_cast<chrono::milliseconds>(end - start).count()
          << " ms" << endl;
     cout << "Polishing the graph. Wait..."<<endl;
+    if (Parameters::get().debug)
+        g.print(INF, INF, "graphs/dbg.txt");
     g.subsane(sequence_map);
+    if (Parameters::get().debug)
+        g.print(INF, INF, "graphs/dbg_postsubsane.txt");
 }
 /*
  * Traversion alternative
@@ -405,6 +409,8 @@ void _traverseReadsHash(char * file_left, char * file_right
                     }
                 }
             }else{
+                /*pe_information << "Kmer not found: "<<kmerModel.toString(kmerItLeft->forward())
+                    << " Read: "<<number_reads<<" Pos: "<<(s1.getDataSize()-l1)<<endl;*/
                 /*cout << "Kmer no localizado: "<<kmerModel.toString(kmerItLeft->forward())
                 <<" Read: "<<number_reads<<" Pos: "<<(s1.getDataSize()-l1)<<endl;*/
             }
@@ -718,6 +724,11 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
     cout << "Processing cliques from DBG... This will take a while!" <<endl;
     DBG apdbg;
     g.build_process_cliques(apdbg, sequence_map, num_unitigs);
+    if (Parameters::get().debug) {
+        cout << "Exporting ADPBG" << endl;
+        apdbg.print(1, INF);
+        apdbg.export_to_gfa(sequence_map);
+    }
     vector<vector<size_t>> unitigs = apdbg.export_unitigs(sequence_map, false);
     vector<vector<size_t>> unitigs_2 = apdbg.export_unitigs_basic(sequence_map, false);
     /*cout << "Unitigs!"<<endl;
@@ -727,6 +738,8 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
         cout << endl;
     }*/
     _write_unitigs(unitigs, write_path, sequence_map, g.vertices(), kmer_size);
+    char * write_path_extra = "tmp/unitigs-viaDBG-greedy.fasta";
+    _write_unitigs(unitigs_2, write_path_extra,  sequence_map, g.vertices(), kmer_size);
 }
 
 DBG _buildGraph(char * file)
@@ -753,6 +766,11 @@ int main (int argc, char* argv[])
         {
             cout << "############## Debug mode enabled #################"<<endl;
             Parameters::get().debug = true;
+        }
+        if (strcmp(argv[i],"--greedy") == 0)
+        {
+            cout <<"############## Greedy extension enabled ##################"<<endl;
+            Parameters::get().greedy = true;
         }
     }
     Parameters::get().kmerSize = kmerSize;

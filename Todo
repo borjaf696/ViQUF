@@ -22,3 +22,5 @@ Moving into full representative representation - Donete via bcalm
  - gfa del grafo local que creo para el nodo que estoy mirando - tratar de descubrir si tiene o no sentido para nuestro caso de estudio (Pending).
  - REVISAR CAMINOS NF - reachability - ¿guardar la longitud del camino? No me parece muy escalable
  - REVISAR FLAGS - (TRIAL)
+ - Revisar frecuencias de aristas - están mal - done! Fallo de reportado ahora están correctos.
+ - REVISAR: bit-vector para emparejamientos erróneos. ¿Ocurren frecuentemente?

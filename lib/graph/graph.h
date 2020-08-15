@@ -45,11 +45,17 @@
 #define RATIO_SIMILARITY 50
 
 #define FIRSTLASTLENGTH 100
-
+/*
+ * Flow + Network flow constants
+ */
 #define MAX_GRANULARITY_ALLOWED 10
 #define MIN_FLOW_PATH 30
 #define READJUST 1
-
+#define CORRECT_GRAPH 1
+#define CORRECT_RATIO 0.5
+/*
+ * Filtering pairs quantiles
+ */
 #define L_QUANTILE 0.00
 #define H_QUANTILE 0.85
 
@@ -219,6 +225,11 @@ public:
             return _paired_info;
         }
 
+        void set_abundance(float abundance)
+        {
+            _abundance = abundance;
+        }
+
         size_t get_abundance(OwnNode_t node)
         {
             if (_map_abundance.find(node) == _map_abundance.end())
@@ -375,7 +386,7 @@ public:
         }
     }
 
-    void addNode(UG_Node node_parent, UG_Node node_son, bool show = false)
+    pair<OwnNode_t,OwnNode_t> addNode(UG_Node node_parent, UG_Node node_son, bool show = false)
     {
         vector<OwnNode_t> index_1 = _get_posible_pos(node_parent._val),index_2 = _get_posible_pos(node_son._val);
         OwnNode_t i_1 = NO_NEIGH, i_2 = NO_NEIGH;
@@ -474,7 +485,7 @@ public:
         {
             cout << "Edge already inserted - skipped -> "<<i_1<<"-"<<i_2<<endl;
         }
-
+        return {i_1, i_2};
         //cout <<" Adding edge from "<<i_1<<"/"<<_g_nodes[i_1]._val<<" to "<<i_2<<"/"<<_g_nodes[i_2]._val<<endl;
         // Lets check the information
         //print();
@@ -519,6 +530,11 @@ public:
      * Methods graph
      */
     vector<size_t> getNeighbor(OwnNode_t, bool = true, size_t = NO_NEIGH);
+    float _get_edge_frec(OwnNode_t parent, OwnNode_t son)
+    {
+        size_t pos = _g_edges[parent].begin() - find(_g_edges[parent].begin(), _g_edges[parent].end(), son);
+        return _g_edges_reads[parent][pos];
+    }
     void add_read(OwnNode_t, size_t);
     void add_read(OwnNode_t, OwnNode_t, size_t, bool);
     void set_length(OwnNode_t, size_t);
@@ -551,7 +567,8 @@ public:
      */
     string toString();
     void stats();
-    void print(OwnNode_t = INF, OwnNode_t = INF);
+    void print(OwnNode_t = INF, OwnNode_t = INF, string = "graphs/adbg.txt");
+    void export_to_gfa(const vector<string> &, string = "graphs/adbg.gfa");
     void post_process_pairs(const vector<string> &);
 private:
     void _get_internal_stats();
@@ -623,7 +640,8 @@ public:
         }
         void readjustAbundance(float min_flow, float max_flow)
         {
-            _abundance = (max_flow >= _abundance)?max_flow - _abundance + min_flow:min_flow;
+            //_abundance = (max_flow >= _abundance)?max_flow - _abundance + min_flow:min_flow;
+            _abundance = ceil((MAX_GRANULARITY_ALLOWED*100)*abs(_abundance - max_flow)/max_flow + MAX_GRANULARITY_ALLOWED);
         }
         OwnNode_t _val;
         size_t _id;
@@ -670,7 +688,7 @@ public:
      */
     priority_queue<pair<size_t,vector<OwnNode_t>>>
             report_maximal_cliques(unordered_map<size_t,size_t>, DBG &, unordered_map<size_t,float> &, bool );
-    priority_queue<pair<size_t,vector<OwnNode_t>>> report_min_cost_flow(const vector<size_t> &, size_t, bool, string);
+    priority_queue<pair<size_t,vector<OwnNode_t>>> report_min_cost_flow(const vector<size_t> &, size_t, bool,unordered_map<OwnNode_t,bool>,string);
 
     size_t degree(OwnNode_t i)
     {
@@ -745,6 +763,7 @@ public:
     }
     void post_process_cycles(vector<size_t>&, size_t&);
     void readjust_flow(float, float);
+    void correct_graph(std::ofstream &);
 private:
     vector<Node> _g_nodes;
     vector<vector<OwnNode_t >> _g_edges, _g_in_edges;
