@@ -13,7 +13,6 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Todo" beforeDir="false" afterPath="$PROJECT_DIR$/Todo" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Versions" beforeDir="false" afterPath="$PROJECT_DIR$/Versions" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/extra/extra.h" beforeDir="false" afterPath="$PROJECT_DIR$/lib/extra/extra.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/graph/graph.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/lib/graph/graph.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/graph/graph.h" beforeDir="false" afterPath="$PROJECT_DIR$/lib/graph/graph.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/test-meta.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-meta.cpp" afterDir="false" />
@@ -104,7 +103,8 @@
       <workItem from="1592758190421" duration="81529000" />
       <workItem from="1593933889077" duration="53435000" />
       <workItem from="1594464256123" duration="1800000" />
-      <workItem from="1594700261876" duration="106019000" />
+      <workItem from="1594700261876" duration="140810000" />
+      <workItem from="1598373721365" duration="25431000" />
     </task>
     <servers />
   </component>
@@ -112,21 +112,21 @@
     <option name="version" value="1" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="776" y="258" width="424" height="484" key="FileChooserDialogImpl" timestamp="1589471884809">
+    <state x="776" y="258" width="424" height="484" key="FileChooserDialogImpl" timestamp="1597569798433">
       <screen x="67" y="27" width="1853" height="948" />
     </state>
-    <state x="776" y="258" width="424" height="484" key="FileChooserDialogImpl/67.27.1853.948@67.27.1853.948" timestamp="1589471884809" />
-    <state x="649" y="323" key="com.intellij.ide.util.TipDialog" timestamp="1594464257674">
+    <state x="776" y="258" width="424" height="484" key="FileChooserDialogImpl/67.27.1853.948@67.27.1853.948" timestamp="1597569798433" />
+    <state x="649" y="323" key="com.intellij.ide.util.TipDialog" timestamp="1598373721127">
       <screen x="67" y="27" width="1853" height="948" />
     </state>
-    <state x="649" y="323" key="com.intellij.ide.util.TipDialog/67.27.1853.948@67.27.1853.948" timestamp="1594464257674" />
+    <state x="649" y="323" key="com.intellij.ide.util.TipDialog/67.27.1853.948@67.27.1853.948" timestamp="1598373721127" />
     <state x="647" y="118" width="683" height="764" key="com.intellij.openapi.editor.actions.MultiplePasteAction$ClipboardContentChooser" timestamp="1592553214873">
       <screen x="67" y="27" width="1853" height="948" />
     </state>
     <state x="647" y="118" width="683" height="764" key="com.intellij.openapi.editor.actions.MultiplePasteAction$ClipboardContentChooser/67.27.1853.948@67.27.1853.948" timestamp="1592553214873" />
-    <state x="656" y="230" width="672" height="697" key="search.everywhere.popup" timestamp="1595409422893">
+    <state x="656" y="230" width="672" height="697" key="search.everywhere.popup" timestamp="1599124479158">
       <screen x="67" y="27" width="1853" height="948" />
     </state>
-    <state x="656" y="230" width="672" height="697" key="search.everywhere.popup/67.27.1853.948@67.27.1853.948" timestamp="1595409422893" />
+    <state x="656" y="230" width="672" height="697" key="search.everywhere.popup/67.27.1853.948@67.27.1853.948" timestamp="1599124479158" />
   </component>
 </project>

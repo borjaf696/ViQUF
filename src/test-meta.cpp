@@ -21,6 +21,9 @@
 #define VERSION 2
 #define MIN_LENGTH 500
 
+#define STATIC_RESERVE 1024*1024*1024
+#define HAND_THRESHOLD 40
+
 using namespace std;
 using namespace sdsl;
 
@@ -285,10 +288,11 @@ void _traverseReadsHash(char * file_left, char * file_right
     /*
      * Debug options
      */
-    std::ofstream pe_information;
+    std::ofstream pe_information, histogram_file;
     if (Parameters::get().debug)
     {
         pe_information.open("debug/pe_information.txt", std::ofstream::out);
+        histogram_file.open("debug/histogram_pe.txt", std::ofstream::out);
     }
     cout << "Traversing paired-end reads: "<< endl;
     cout << "Left: "<<file_left<<endl;
@@ -310,7 +314,8 @@ void _traverseReadsHash(char * file_left, char * file_right
     /*
      * (TRIAL) Bloom filter for paired-end
      */
-    bit_vector pairs_added = bit_vector(pow(2,30),0);
+    auto preCounters = new std::atomic<unsigned char>[STATIC_RESERVE];
+
     cout << "Paired-end traversion"<<endl;
     for (progress_iter.first(); !progress_iter.isDone(); progress_iter.next()) {
         Sequence &s1 = itPair->item().first;
@@ -330,7 +335,7 @@ void _traverseReadsHash(char * file_left, char * file_right
         /*
          * (TRIAL) Unordered_set composed unitigs as keys.
          */
-        unordered_set<uint32_t> pairs_set_1;
+        unordered_set<size_t> pairs_set_1;
         for (kmerItLeft.first(); !kmerItLeft.isDone(); kmerItLeft.next())
         {
             bool show = false;
@@ -368,42 +373,68 @@ void _traverseReadsHash(char * file_left, char * file_right
                             if (forward_right) {
                                 key = (unitig_left << 15)| unitig_right
                                         , rc_key = (rev_comp_unitig_right << 15) | rev_comp_unitig_left;
-                                if (pairs_added[key] == 1 & pairs_set_1.find(key) == pairs_set_1.end())
+                                if (pairs_set_1.find(key) == pairs_set_1.end())
                                 {
-                                    g.addPair(unitig_left, unitig_right, forward, forward_right);
-                                    g.addPair(rev_comp_unitig_right, rev_comp_unitig_left, forward, forward_right);
+                                    if (preCounters[key] < 255)
+                                    {
+                                        preCounters[key]++;preCounters[rc_key]++;
+                                        pairs_set_1.emplace(key);pairs_set_1.emplace(rc_key);
+                                        if (preCounters[key] >= HAND_THRESHOLD) {
+                                            g.addPair(unitig_left, unitig_right, forward, forward_right);
+                                            g.addPair(rev_comp_unitig_right, rev_comp_unitig_left, forward,forward_right);
+                                        }
+                                    }
                                 }
                             } else {
                                 key = (unitig_left << 15)| rev_comp_unitig_right
                                         , rc_key = (unitig_right << 15) | rev_comp_unitig_left;
-                                if (pairs_added[key] == 1 & pairs_set_1.find(key) == pairs_set_1.end())
+                                if (pairs_set_1.find(key) == pairs_set_1.end())
                                 {
-                                    g.addPair(unitig_left, rev_comp_unitig_right, forward, forward_right);
-                                    g.addPair(unitig_right, rev_comp_unitig_left, forward, forward_right);
+                                    if (preCounters[key] < 255) {
+                                        preCounters[key]++;preCounters[rc_key]++;
+                                        pairs_set_1.emplace(key);pairs_set_1.emplace(rc_key);
+                                        if (preCounters[key] >= HAND_THRESHOLD) {
+                                            g.addPair(unitig_left, rev_comp_unitig_right, forward, forward_right);
+                                            g.addPair(unitig_right, rev_comp_unitig_left, forward, forward_right);
+                                        }
+                                    }
                                 }
                             }
                         } else {
                             if (forward_right) {
                                 key = (rev_comp_unitig_left << 15)| unitig_right
                                         , rc_key = (rev_comp_unitig_right << 15) | unitig_left;
-                                if (pairs_added[key] == 1 & pairs_set_1.find(key) == pairs_set_1.end())
+                                if (pairs_set_1.find(key) == pairs_set_1.end())
                                 {
-                                    g.addPair(rev_comp_unitig_left, unitig_right, forward, forward_right);
-                                    g.addPair(rev_comp_unitig_right, unitig_left, forward, forward_right);
+                                    if (preCounters[key] < 255) {
+                                        preCounters[key]++;preCounters[rc_key]++;
+                                        pairs_set_1.emplace(key);pairs_set_1.emplace(rc_key);
+                                        if (preCounters[key] >= HAND_THRESHOLD) {
+                                            g.addPair(rev_comp_unitig_left, unitig_right, forward, forward_right);
+                                            g.addPair(rev_comp_unitig_right, unitig_left, forward, forward_right);
+                                        }
+                                    }
                                 }
                             } else {
                                 key = (rev_comp_unitig_left << 15)| rev_comp_unitig_right
                                         , rc_key = (unitig_right << 15) | unitig_left;
-                                if (pairs_added[key] == 1 & pairs_set_1.find(key) == pairs_set_1.end())
-                                {
-                                    g.addPair(rev_comp_unitig_left, rev_comp_unitig_right, forward, forward_right);
-                                    g.addPair(unitig_right, unitig_left, forward, forward_right);
+                                    if (pairs_set_1.find(key) == pairs_set_1.end())
+                                    {
+                                        if (preCounters[key] < 255) {
+                                            preCounters[key]++;preCounters[rc_key]++;
+                                            pairs_set_1.emplace(key);pairs_set_1.emplace(rc_key);
+                                            if (preCounters[key] >= HAND_THRESHOLD) {
+                                                g.addPair(rev_comp_unitig_left, rev_comp_unitig_right, forward,
+                                                          forward_right);
+                                                g.addPair(unitig_right, unitig_left, forward, forward_right);
+                                            }
+                                        }
                                 }
                             }
                         }
-                        if (pairs_added[key] == 0)
+                        if (preCounters[key] == 0)
                         {
-                            pairs_added[key] = 1;pairs_added[rc_key] = 1;
+                            preCounters[key] = 1;preCounters[rc_key] = 1;
                             pairs_set_1.emplace(key);pairs_set_1.emplace(rc_key);
                         }
                     }
@@ -423,6 +454,21 @@ void _traverseReadsHash(char * file_left, char * file_right
          * Number of reads
          */
         number_reads++;
+    }
+    if (Parameters::get().debug)
+    {
+        std::ofstream outfile("graphs/pair_end_info.txt", std::ofstream::binary);
+        for (size_t i = 0; i < STATIC_RESERVE;++i)
+        {
+            if (preCounters[i] > 0)
+            {
+                size_t node_left = (i >> 15), node_right = (i & 32767);
+                outfile << "Left: "<<node_left<<" - "<<node_right<<" Freq: "<<((int)preCounters[i])<<endl;
+                histogram_file<<((int)preCounters[i])<<endl;
+            }
+        }
+        histogram_file.close();
+        outfile.close();
     }
     cout << "Number of reads traversed: "<<number_reads<<endl;
     auto end = chrono::steady_clock::now();
@@ -675,31 +721,19 @@ void _write_unitigs(vector<vector<size_t>> unitigs
         , char * write_path, const vector<string> & sequence_map
         , size_t num_unitigs_fw,size_t kmer_size, bool force_write = false)
 {
-    cout << "Writing unitigs"<<endl;
+    cout << "Writing unitigs: "<<unitigs.size()<<endl;
     size_t num_unitigs = 0;
     ofstream outputFile(write_path);
     for (auto unitig:unitigs)
     {
-        //cout << "Unitig: "<<endl;
         string full_unitig = "";
         for (size_t i = 0; i < unitig.size();++i)
         {
             //cout << unitig[i]<<" ";
             size_t u = unitig[i];
-            bool reverse = false;
-            if (u >= (num_unitigs_fw/2))
-            {
-                u -= (num_unitigs_fw/2);
-                reverse = true;
-            }
-            string seq = sequence_map.at(u);
-            seq = ((reverse)?Sequence(seq.c_str()).getRevcomp():seq);
-            if (i == 0 && i != unitig.size() -1)
-                seq = seq;
-            else if (i != unitig.size()-1)
-                seq = seq.substr(kmer_size-1, seq.size()-kmer_size+1);
-            else if (i == unitig.size()-1 && i != 0)
-                seq = seq.substr(kmer_size-1, seq.size());
+            string seq = Common::return_unitig(sequence_map, u);
+            if (i != 0)
+                seq = seq.substr(kmer_size-1, seq.size() - kmer_size + 1);
             /*char * cstr = new char [seq.length()+1];
             std::strcpy (cstr, seq.c_str());*/
             full_unitig += seq;
@@ -729,7 +763,7 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
         apdbg.print(1, INF);
         apdbg.export_to_gfa(sequence_map);
     }
-    vector<vector<size_t>> unitigs = apdbg.export_unitigs(sequence_map, false);
+    //vector<vector<size_t>> unitigs = apdbg.export_unitigs(sequence_map, false);
     vector<vector<size_t>> unitigs_2 = apdbg.export_unitigs_basic(sequence_map, false);
     /*cout << "Unitigs!"<<endl;
     for (auto u: unitigs) {
@@ -737,7 +771,7 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
             cout << " " << u2;
         cout << endl;
     }*/
-    _write_unitigs(unitigs, write_path, sequence_map, g.vertices(), kmer_size);
+    //_write_unitigs(unitigs, write_path, sequence_map, g.vertices(), kmer_size);
     char * write_path_extra = "tmp/unitigs-viaDBG-greedy.fasta";
     _write_unitigs(unitigs_2, write_path_extra,  sequence_map, g.vertices(), kmer_size);
 }

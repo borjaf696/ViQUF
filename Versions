@@ -65,6 +65,8 @@ Version actual:
             + Haber recorrido todos los nodos (path cover)
             + Obtener el flujo esperado entre A-B (como la frecuencia de la arista) y no añadir los caminos una vez alcanzado el flujo esperado (el flujo esperado
             según nuestra nueva aproximación es el flujo (sin ajustar) de las aristas)
+            + Chequear los "paths": Si paths entre A -> B, path_1 (n1,n2) y path_2 (n3,n4) donde subset(n1,n3) y in_parent(B) > 1 entonces remove(path_2(n1,n3))...
+            !Chequear!
         - Offset network flow to solution flow:
             + Available_flow[(x,y)] + Offset_flow(y,x) - Offset_flow(x,y)
         - Cambiar a la versión de aristas con capacidad 1 tantas como flujo (máximo flujo en las aristas) e incorporar
@@ -83,4 +85,6 @@ Version actual:
         - Matiz adicional: si un unitig pertenece a union_set entonces hay que tener cuidado por que va a ser probablemente un origen + no se puede contar su longitud íntegra
         - Por que no directamente los nodos Node/Neigh como parte de la información de emparejados?
         - Añadidos además los nodos intermedios de entrada como fake nodes -> estos no se tendrán en cuenta en la incorporación de los caminos pero si como posibles constructores
-        de los mismos. La idea es quedarnos con los legítimos esquivando los falsos. (__reach incorpora in_nodes y se maneja con true_nodes)
+        de los mismos. La idea es quedarnos con los legítimos esquivando los falsos. (__reach incorpora in_nodes y se maneja con true_nodes); pero ojo solo se añade 1 y cuando
+        se realiza un split del camino (se encuentra un nodo branched entonces se resetea). ¿Para que agregar 40 diferentes si realmente a nosotros nos interesa la legitimidad en
+        una línea recta?

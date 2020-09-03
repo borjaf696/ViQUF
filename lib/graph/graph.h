@@ -57,7 +57,7 @@
  * Filtering pairs quantiles
  */
 #define L_QUANTILE 0.00
-#define H_QUANTILE 0.85
+#define H_QUANTILE 0.95
 
 using namespace lemon;
 using namespace std;

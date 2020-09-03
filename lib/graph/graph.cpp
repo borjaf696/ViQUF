@@ -172,7 +172,7 @@ size_t DBG::getAbundance(size_t node, size_t pair)
 
 void DBG::addPair(size_t v, size_t p, bool forward, bool forward_right)
 {
-    /*if (v == 131)
+    /*if (v == 0 && p == 3)
         cout <<"V: "<<v<<" P: "<<p<<" Forward: "<<forward<<" Forward_Right: "<<forward_right<<endl;*/
     _g_nodes[v].add_paired_information(p);
 }
@@ -235,6 +235,7 @@ void DBG::build_process_cliques(DBG & apdbg,
         for (size_t n_i = 0; n_i < neighbors.size(); ++n_i)
         {
             auto n = neighbors[n_i];
+            auto in_parents = getNeighbor(_g_nodes[n]._id, false);
             size_t val_neigh = _g_nodes[n]._val;
             size_t strain_freq = Maths::my_round(_g_edges_reads[i][n_i], true);
             float strain_freq_check = strain_freq;
@@ -411,14 +412,14 @@ void DBG::build_process_cliques(DBG & apdbg,
                     &basic_information,
                     &true_nodes,
                     &minimum_reached_by,&reached_by,&reverse_map,&frequencies_map](size_t  src, size_t target,
-                                 size_t &steps, size_t &branches
+                                 size_t steps, size_t &branches
                     , unordered_set<OwnNode_t> & checked
                     ,vector<size_t> & median_flow,
                                  float & max_flow,
                                  float & min_flow,
                                  vector<pair<OwnNode_t, size_t>> & in_nodes)->void{
                 if (Parameters::get().debug)
-                    basic_information <<"("<<steps<<","<<in_nodes.size()<<")"<<target<<"("<<src<<")->";
+                    basic_information <<"("<<steps<<","<<in_nodes.size()<<")"<<target<<"("<<src<<","<< median_flow.size()<<")->";
                 bool swap = false;
                 size_t new_steps = 0, new_branches = 0;
                 if (src != target && (in(union_pei, target))) {
@@ -487,11 +488,18 @@ void DBG::build_process_cliques(DBG & apdbg,
                     if (checked.find(neigh) == checked.end())
                     {
                         if (!swap) {
+                            /*
+                             * Once you swap the current strain you have to reset the fake_nodes
+                             */
                             vector<pair<OwnNode_t,size_t>> new_in_nodes = in_nodes;
                             vector<size_t> new_median_flow = median_flow;
                             vector<OwnNode_t> parents = getNeighbor(neigh, false, target);
-                            for (auto parent:parents)
-                                new_in_nodes.push_back({parent, _get_edge_frec(parent, neigh)});
+                            if (neighbors.size() > 1 || parents.size() > 1)
+                            {
+                                new_in_nodes.clear();
+                                for (auto parent:parents)
+                                    new_in_nodes.push_back({parent, _get_edge_frec(parent, neigh)});
+                            }
                             new_median_flow.push_back(_g_edges_reads[target][i]);
                             size_t local_steps = steps;
                             __reach(src, neigh, local_steps, branches, checked, new_median_flow, max_flow, min_flow, new_in_nodes);
@@ -594,7 +602,7 @@ void DBG::build_process_cliques(DBG & apdbg,
                     basic_information << "Readjusting nodes/edges capacities"<<endl;
                 }
                 local_graph_2.readjust_flow(min_flow, max_flow);
-                //strain_freq_check = ceil((MAX_GRANULARITY_ALLOWED*100)*abs((float) max_flow)/max_flow + MAX_GRANULARITY_ALLOWED);
+                strain_freq_check = ceil((MAX_GRANULARITY_ALLOWED*100)*abs((float) max_flow)/max_flow + MAX_GRANULARITY_ALLOWED);
             }
             if (Parameters::get().debug)
                 basic_information << "Maximum expected flow: "<<max_flow
@@ -729,26 +737,26 @@ void DBG::build_process_cliques(DBG & apdbg,
             /*
              * Procesar las paired-end y eliminar los subconjuntos
              */
-            /*for (size_t index_s = 0; index_s < potential_nodes.size(); ++index_s)
+            for (size_t index_s = 0; index_s < potential_nodes.size(); ++index_s)
             {
-                UG_Node p = potential_nodes[index_s].first, h = potential_nodes[index_s].second;
+                UG_Node p = potential_nodes[index_s].second.first, h = potential_nodes[index_s].second.second;
                 for (size_t index_s_2 = 0; index_s_2 < potential_nodes.size(); ++index_s_2)
                 {
-                    UG_Node p_2 = potential_nodes[index_s_2].first, h_2 = potential_nodes[index_s_2].second;
+                    UG_Node p_2 = potential_nodes[index_s_2].second.first, h_2 = potential_nodes[index_s_2].second.second;
                     if (p_2 == p && h_2 == h)
                         continue;
                     bool parent_ss = is_subset(p._paired_info,p_2._paired_info), parent_ss_2 = is_subset(p_2._paired_info, p._paired_info)
                             ,son_ss = is_subset(h._paired_info, h_2._paired_info), son_ss_2 = is_subset(h_2._paired_info,h._paired_info);
-                    if (parent_ss && !parent_ss_2)
+                    if (parent_ss && !parent_ss_2 && (in_parents.size() > 1))
                         offset_erase[index_s] = true;
-                    if (parent_ss_2 && !parent_ss)
+                    if (parent_ss_2 && !parent_ss && (in_parents.size() > 1))
                         offset_erase[index_s_2] = true;
-                    if (son_ss && !son_ss_2)
+                    if (son_ss && !son_ss_2 && (neighbors.size() > 1))
                         offset_erase[index_s] = true;
-                    if (son_ss_2 && !son_ss)
-                        offset_erase[index_s] = true;
+                    if (son_ss_2 && !son_ss && (neighbors.size() > 1))
+                        offset_erase[index_s_2] = true;
                 }
-            }*/
+            }
             if (offset_erase.size() > 1) {
                 /*size_t num_removes = 0;
                 for (size_t it = 0; it < offset_erase.size(); ++it) {
@@ -1192,10 +1200,10 @@ void DBG::_extension_basic(vector<vector<OwnNode_t>> & unitigs, UG_Node node, ve
     {
         if (neighs.size() != 1)
         {
-            if (unitigs[node._id].size() > 5)
+            if (unitigs[node._id].size() > 1)
             {
-                cout << "Val: "<<_g_nodes[parent]._val<<" Id: "<<_g_nodes[parent]._id<<endl;
-                cin.get();
+                cout << "Val: "<<_g_nodes[parent]._val<<" Id: "<<_g_nodes[parent]._id<<" Neighs: "<<neighs.size()<<endl;
+                //cin.get();
             }
             break;
         }
@@ -1206,7 +1214,6 @@ void DBG::_extension_basic(vector<vector<OwnNode_t>> & unitigs, UG_Node node, ve
         if (Parameters::get().debug)
             extension_information<<parent<<":"<<parent_val<<"("<<neighs.size()<<") ";
         checked[parent] = true;
-
     }
     if (Parameters::get().debug)
         extension_information << endl;
@@ -1737,6 +1744,20 @@ void UG::correct_graph(std::ofstream & adjust_information)
                 if (Parameters::get().debug)
                     adjust_information << "Abundance from "<<n._abundance<<" to "<<out_flow<<endl;
                 _g_nodes[i]._abundance = out_flow;
+            }
+        } else {
+            Node n = _g_nodes[i];
+            size_t in_flow = 0;
+            for (size_t j = 0; j < _g_in_edges[i].size();++j)
+            {
+                OwnNode_t neigh_id = _g_in_edges[i][j];
+                in_flow += _g_freqs[neigh_id][find(_g_edges[neigh_id].begin(), _g_edges[neigh_id].end(),n._id)-_g_edges[neigh_id].begin()];
+            }
+            if (((n._abundance > (float) in_flow * (1 + CORRECT_RATIO)) || (n._abundance*(1 + CORRECT_RATIO) < (float) in_flow)) & in_flow != 0)
+            {
+                if (Parameters::get().debug)
+                    adjust_information << "Abundance from "<<n._abundance<<" to "<<in_flow<<endl;
+                _g_nodes[i]._abundance = in_flow;
             }
         }
     }

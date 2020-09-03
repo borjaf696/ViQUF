@@ -10,6 +10,8 @@ from Bio.Seq import Seq
 from Bio.Alphabet import generic_dna
 from utils.utils import *
 from kneed import KneeLocator
+import numpy as np
+import math
 
 class UtilsReport:
     @staticmethod
@@ -65,18 +67,73 @@ class RepresentantGraph:
         print('End!')
 
     def __study_frequency_histograms(self, abundanceMin = 1):
-        file = self.outFile+'.histo'
+        file, file_w = self.outFile+'.histo', self.outFile+'.histo.txt'
+        def roundup(x):
+            return int(math.ceil(x / 10.0)) * 10
+        def __vector_trend(x, window_size = 15):
+            assert len(x) > 2*window_size
+
+            for i, v in enumerate(x):
+                if i < window_size:
+                    continue
+                left_trend, right_trend = 0, 0
+                for j in range(i-window_size, i):
+                    left_trend += (x[j] >= v)
+                for j in range(i, min(i+window_size, len(x))):
+                    right_trend += (x[j] >= v)
+                if left_trend <= right_trend and right_trend >= (window_size*0.5):
+                    print('LT: ',left_trend,' RT: ',right_trend)
+                    return i
+        def __kernel_estimation(data_x, data_y):
+            import matplotlib
+            import matplotlib.pyplot as plt
+            import seaborn as sns; sns.set()
+            SCALE = 1
+            hist = plt.hist(data_y, bins=500, density=True)
+            plt.savefig(self.outFile+'_histo.png')
+            plt.clf()
+            from scipy import stats
+            plt.hist(data_y, bins=100, density=True)
+            gkde=stats.gaussian_kde(data_y)
+            print('Kde factor: ', gkde.factor)
+            gkde.set_bandwidth(bw_method=gkde.factor*SCALE)
+            kdepdf = gkde.evaluate(data_x)
+            # plot estimated density
+            plt.plot(data_x, kdepdf, label='kde', color="g")
+            plt.title('Kernel Density Estimation')
+            plt.savefig(self.outFile+'_density.png')
+            # Cross zeros
+            Z = np.reshape(kdepdf.T, data_x.shape)
+            diff = np.gradient(Z)
+            sdiff = np.sign(diff)
+            zc = np.where(sdiff[:-1] != sdiff[1:])
+            print('Zero crosses: ',zc)
+            first, second = zc[0][0], zc[0][1]
+            return (first+second)/2
+        UPER_FREQ_LIMIT = 500
         x,y = [],[]
-        with open(file, 'r') as f:
+        X,Y = [],[]
+        with open(file, 'r') as f,open(file_w, 'w') as f2:
             for i, line in enumerate(f.readlines()):
+                l_split = line.strip().split('\t')
+                value = 500 if int(l_split[1]) > 500 else int(l_split[1])
+                X.append(int(l_split[0]))
+                Y += [int(l_split[0])]*value
                 if i <= abundanceMin:
                     continue
-                l_split = line.strip().split('\t')
                 x.append(int(l_split[0]))
-                y.append(int(l_split[1]))
-        kneedle = KneeLocator(x, y, S=1.0, curve='concave', direction='increasing')
-        print('Recommended abundance: ', abundanceMin+kneedle.knee)
-        return abundanceMin + kneedle.knee
+                y.append(roundup(int(l_split[1])))
+                f2.write(str(roundup(int(l_split[1])))+'\n')
+        #kneedle = KneeLocator(x, y, S=2.0, curve='convex', direction='decreasing')
+        offset = __vector_trend(y)
+        print('Offset: ',offset)
+        #offset = kneedle.knee
+        print('Recommended abundance: ', abundanceMin+offset)
+        min_freq_estimator = abundanceMin + offset
+        min_freq_estimator_kde = __kernel_estimation(np.array(X)[0:4000], np.array(Y))
+        print('Recommended abundance (kernel estimator): ',min_freq_estimator_kde)
+        min_freq_estimator = max(min_freq_estimator_kde, min_freq_estimator)
+        return min_freq_estimator
 
     def getOutFile(self):
         return self.outFile+self._tail
@@ -136,7 +193,7 @@ if __name__=='__main__':
     print('Lets do this')
     tmpDir, resDir = 'tmp/', 'tmpresultsDir_'
     readFiles = []
-    def __preprocess_karect(path):
+    def __preprocess_karect(path, correct = True):
         global resDir
 
         resDir = resDir + 'Karect/'
@@ -145,8 +202,12 @@ if __name__=='__main__':
         files = Utils.get_files(path, ['fastq'])
         files.sort()
         print('Files: ', files)
-        cmd = ['karect','-correct','-matchtype=hamming','-celltype=haploid','-resultdir='+resDir]+['-inputfile='+t for t in files]
-        Utils.executecmd(cmd)
+        if correct:
+            cmd = ['karect','-correct','-matchtype=hamming','-celltype=haploid','-resultdir='+resDir]+['-inputfile='+t for t in files]
+            Utils.executecmd(cmd)
+        else:
+            for i,f in enumerate(files):
+                Utils.cpfile(f, resDir+str(i)+'.fastq')
         Utils.remove_dir(tmpDir)
         Utils.mkdir(tmpDir)
         suffix = 'Ownlatest/'
@@ -243,7 +304,8 @@ if __name__=='__main__':
 
     type = sys.argv[4]
     if type == 'ngs':
-        pathIn = __preprocess_karect(sys.argv[1])
+        pear = (sys.argv[6] == '--joined')
+        pathIn = __preprocess_karect(sys.argv[1], sys.argv[5] == '--correct')
         path, kmerSize, abundanceMin = pathIn[0], sys.argv[2], sys.argv[3]
         print('Path: ', path)
         rG = RepresentantGraph(path, kmerSize, abundanceMin)
