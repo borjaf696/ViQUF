@@ -27,3 +27,6 @@ Moving into full representative representation - Donete via bcalm
 
  **HISTOGRAMAS LEENA + CORRECCIÓN SUBSETS** - Done
  ** CORRECCIÓN TAILS NETWORK FLOWS **
+ - Agregar el comportamiento según el behaviour - nop no funciona
+ - Chequear dataset 15-ZIKV (asegurar frecuencias cuando hay varios vecinos en un camino, tratar de ver como poder asegurarnos las frecuencias...)
+ - Tratar de pulir el grafo (apdbg) - una vez hayamos asegurado que el resto de cosas van bien! No quiero depender del pulido como paso clave.

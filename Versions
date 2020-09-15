@@ -13,6 +13,7 @@ Version actual:
              - Para meta = 2; para quasi = 3 - Hay que usar la longitud del unitig - mirar las modas
              - Incluso con la length sigue siendo mala aproximación - LCL negativo!!
              - Done!
+             - Se ha eliminado el post-procesado por pair-node (a nivel individual)
       - Corregir los cliques - guiarlos en base a la frecuencia del unitig?
       - Todos los cliques deben tener información tanto del padre como del hijo
       - Nueva heurística:
@@ -88,3 +89,10 @@ Version actual:
         de los mismos. La idea es quedarnos con los legítimos esquivando los falsos. (__reach incorpora in_nodes y se maneja con true_nodes); pero ojo solo se añade 1 y cuando
         se realiza un split del camino (se encuentra un nodo branched entonces se resetea). ¿Para que agregar 40 diferentes si realmente a nosotros nos interesa la legitimidad en
         una línea recta?
+
+        **** Paired-end ****
+        - New trial - vamos a asociar los pe_information con cada par de nodos:
+            + Usamos un bitmap para marcar las lecturas que efectivamente guardan información de transición de unitigs.
+            + Asociamos la información según corresponda:
+                ++ u1 - [u2,u3] = getNeighbors(u1); paired-end(u1,u2) paired-end(u1,u3)
+                ++ Recordar rc

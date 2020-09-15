@@ -13,10 +13,12 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Todo" beforeDir="false" afterPath="$PROJECT_DIR$/Todo" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Versions" beforeDir="false" afterPath="$PROJECT_DIR$/Versions" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/extra/extra.h" beforeDir="false" afterPath="$PROJECT_DIR$/lib/extra/extra.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/graph/graph.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/lib/graph/graph.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/graph/graph.h" beforeDir="false" afterPath="$PROJECT_DIR$/lib/graph/graph.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/test-meta.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-meta.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/test/testBcalm.py" beforeDir="false" afterPath="$PROJECT_DIR$/test/testBcalm.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/utils.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -25,6 +27,20 @@
   </component>
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="DatabaseView">
+    <option name="SHOW_INTERMEDIATE" value="true" />
+    <option name="GROUP_DATA_SOURCES" value="true" />
+    <option name="GROUP_SCHEMA" value="true" />
+    <option name="GROUP_CONTENTS" value="false" />
+    <option name="SORT_POSITIONED" value="false" />
+    <option name="SHOW_EMPTY_GROUPS" value="false" />
+    <option name="AUTO_SCROLL_FROM_SOURCE" value="false" />
+    <option name="HIDDEN_KINDS">
+      <set />
+    </option>
+    <expand />
+    <select />
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
@@ -104,7 +120,8 @@
       <workItem from="1593933889077" duration="53435000" />
       <workItem from="1594464256123" duration="1800000" />
       <workItem from="1594700261876" duration="140810000" />
-      <workItem from="1598373721365" duration="25431000" />
+      <workItem from="1598373721365" duration="25630000" />
+      <workItem from="1599547655145" duration="49942000" />
     </task>
     <servers />
   </component>
@@ -116,17 +133,17 @@
       <screen x="67" y="27" width="1853" height="948" />
     </state>
     <state x="776" y="258" width="424" height="484" key="FileChooserDialogImpl/67.27.1853.948@67.27.1853.948" timestamp="1597569798433" />
-    <state x="649" y="323" key="com.intellij.ide.util.TipDialog" timestamp="1598373721127">
+    <state x="649" y="323" key="com.intellij.ide.util.TipDialog" timestamp="1599547673241">
       <screen x="67" y="27" width="1853" height="948" />
     </state>
-    <state x="649" y="323" key="com.intellij.ide.util.TipDialog/67.27.1853.948@67.27.1853.948" timestamp="1598373721127" />
+    <state x="649" y="323" key="com.intellij.ide.util.TipDialog/67.27.1853.948@67.27.1853.948" timestamp="1599547673241" />
     <state x="647" y="118" width="683" height="764" key="com.intellij.openapi.editor.actions.MultiplePasteAction$ClipboardContentChooser" timestamp="1592553214873">
       <screen x="67" y="27" width="1853" height="948" />
     </state>
     <state x="647" y="118" width="683" height="764" key="com.intellij.openapi.editor.actions.MultiplePasteAction$ClipboardContentChooser/67.27.1853.948@67.27.1853.948" timestamp="1592553214873" />
-    <state x="656" y="230" width="672" height="697" key="search.everywhere.popup" timestamp="1599124479158">
+    <state x="656" y="230" width="672" height="697" key="search.everywhere.popup" timestamp="1599813702002">
       <screen x="67" y="27" width="1853" height="948" />
     </state>
-    <state x="656" y="230" width="672" height="697" key="search.everywhere.popup/67.27.1853.948@67.27.1853.948" timestamp="1599124479158" />
+    <state x="656" y="230" width="672" height="697" key="search.everywhere.popup/67.27.1853.948@67.27.1853.948" timestamp="1599813702002" />
   </component>
 </project>

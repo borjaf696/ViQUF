@@ -22,7 +22,7 @@
 #define MIN_LENGTH 500
 
 #define STATIC_RESERVE 1024*1024*1024
-#define HAND_THRESHOLD 40
+#define HAND_THRESHOLD 30
 
 using namespace std;
 using namespace sdsl;
@@ -169,17 +169,30 @@ void _buildHash(unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_map,
 /*
  * Add frequencies
  */
-void _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_map,
+bit_vector _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_map,
                 char * append_file, size_t total_unitigs, size_t kmerSize
         ,vector<string> & sequence_map, DBG & g)
 {
+    /*
+     * Debug options
+     */
+    std::ofstream reads_transitions;
+    if (Parameters::get().debug)
+    {
+        reads_transitions.open("debug/reads_transitions.txt", std::ofstream::out);
+    }
     cout << "Traversing merged file: "<<append_file<< endl;
     auto start = chrono::steady_clock::now();
     /*
      * Sequence Iterator
      */
     IBank* inputBank = Bank::open (append_file);
+    size_t number_of_reads = (*inputBank).getSize(), totalSize, maxSize;
+    inputBank->estimate (number_of_reads,totalSize, maxSize);
     ProgressIterator<Sequence> it (*inputBank, "Iterating sequences");
+    cout << "Number of reads: "<<number_of_reads<<endl;
+    bit_vector reads_with_transition(number_of_reads,0);
+    size_t n_read = 0;
     /*
      * Kmer models
      */
@@ -216,6 +229,11 @@ void _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_m
                     /*cout << "Kmer Nuevo: "<<kmerModel.toString(kmerIt->forward())<<" "<<unitig_left<<endl;
                     cout << "Current: "<<cur_unitig_left<<" Unitig: "<<unitig_left<<endl;*/
                     if (unitig_left != (cur_unitig_left + total_unitigs / 2) && unitig_left != cur_unitig_left) {
+                        if (!reads_with_transition[n_read]) {
+                            if (Parameters::get().debug)
+                                reads_transitions << "Read included: "<<n_read<<endl;
+                            reads_with_transition[n_read] = 1;
+                        }
                         size_t cur_rev_comp = (cur_unitig_left >= total_unitigs / 2) ?
                                               cur_unitig_left - total_unitigs / 2 : cur_unitig_left + total_unitigs / 2;
                         if (f_s_l) {
@@ -241,6 +259,8 @@ void _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_m
                     } else
                         quantity++;
                 } else {
+                    if (g.out_degree(unitig_left) == 1)
+                        reads_with_transition[n_read] = 1;
                     cur_unitig_left = unitig_left;
                     //cout << "Kmer Inicial: "<<kmerModel.toString(kmerIt->forward())<<endl;
                     f_s_l = forward;
@@ -265,6 +285,7 @@ void _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_m
                                   cur_unitig_left - total_unitigs / 2 : cur_unitig_left + total_unitigs / 2;
             //g.add_read(cur_rev_comp, quantity);
         }
+        n_read++;
     }
     auto end = chrono::steady_clock::now();
     cout << "Elapsed time in milliseconds (FULL) : "
@@ -274,16 +295,18 @@ void _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_m
     if (Parameters::get().debug)
         g.print(INF, INF, "graphs/dbg.txt");
     g.subsane(sequence_map);
-    if (Parameters::get().debug)
-        g.print(INF, INF, "graphs/dbg_postsubsane.txt");
+    rank_support_v5<> rb(&reads_with_transition);
+    cout << "Number of reads with transitions: "<<rb(number_of_reads)<<" out of "<<((float)rb(n_read) / (float)n_read)*100<<"%"<<endl;
+    return reads_with_transition;
 }
 /*
- * Traversion alternative
+ * Traversion of paired-end reads
  */
 void _traverseReadsHash(char * file_left, char * file_right
         ,const unordered_map<Kmer<SPAN>::Type,stored_info> kmer_map
         ,size_t kmerSize, DBG & g, size_t total_unitigs
-        ,const vector<string> & sequence_map)
+        ,const vector<string> & sequence_map
+        ,const bit_vector reads_with_transitions)
 {
     /*
      * Debug options
@@ -308,7 +331,7 @@ void _traverseReadsHash(char * file_left, char * file_right
     /*
      * Number of reads traversed
      */
-    size_t number_reads = 0;
+    size_t number_reads = 0, cnr = 0;
     PairedIterator <Sequence> *itPair = new PairedIterator<Sequence>(inputBank_left->iterator(), inputBank_right->iterator());
     ProgressIterator <std::pair<Sequence, Sequence>> progress_iter(itPair, "paired-end", inputBank_left->estimateNbItems());
     /*
@@ -317,7 +340,17 @@ void _traverseReadsHash(char * file_left, char * file_right
     auto preCounters = new std::atomic<unsigned char>[STATIC_RESERVE];
 
     cout << "Paired-end traversion"<<endl;
-    for (progress_iter.first(); !progress_iter.isDone(); progress_iter.next()) {
+    for (progress_iter.first(); !progress_iter.isDone(); progress_iter.next())
+    {
+        if (Parameters::get().t_data == "virus")
+        {
+            if (!reads_with_transitions[cnr++])
+                continue;
+        }
+        if (Parameters::get().debug)
+        {
+            pe_information << "Read traversed: "<<(cnr-1)<<endl;
+        }
         Sequence &s1 = itPair->item().first;
         Sequence &s2 = itPair->item().second;
         size_t l1 = s1.getDataSize(), l2 = s2.getDataSize();
@@ -482,147 +515,13 @@ void _traverseReadsHash(char * file_left, char * file_right
     cout << "Elapsed time in milliseconds (Paired-end) : "
          << chrono::duration_cast<chrono::milliseconds>(end - start).count()
          << " ms" << endl;
+    if (Parameters::get().debug)
+        g.print(INF, INF, "graphs/dbg_postsubsane.txt");
 }
+
 /*
- * Traversion
+ * Traverse Paired-end reads
  */
-void _traverseReadsFR(char * file_left, char * file_right ,const FMIndex & fm, const RankOnes & rank,
-                    const SelectOnes & select, size_t kmerSize, DBG & g)
-{
-    cout << "Traversing reads!"<<endl;
-    auto start = chrono::steady_clock::now();
-    /*
-     * Paired_end input banks
-     */
-    IBank* inputBank_left = Bank::open (file_left);
-    IBank* inputBank_right = Bank::open(file_right);
-
-    PairedIterator <Sequence> *itPair = new PairedIterator<Sequence>(inputBank_left->iterator(), inputBank_right->iterator());
-    ProgressIterator <std::pair<Sequence, Sequence>> progress_iter(itPair, "paired-end", inputBank_left->estimateNbItems());
-
-    /*
-     * Kmer Models
-     */
-    Kmer<SPAN>::ModelCanonical kmerModel (kmerSize);
-    Kmer<SPAN>::ModelCanonical::Iterator kmerItLeft (kmerModel), kmerItRight (kmerModel);
-    cout << "Starting reads traversion"<<endl;
-    for (progress_iter.first(); !progress_iter.isDone(); progress_iter.next())
-    {
-        Sequence &s1 = itPair->item().first;
-        Sequence &s2 = itPair->item().second;
-        size_t l1 = s1.getDataSize(), l2 = s2.getDataSize();
-        kmerItLeft.setData(s1.getData());
-        kmerItRight.setData(s2.getData());
-        /*
-         * Traverse kmers
-         */
-        kmerItRight.first();
-        for (kmerItLeft.first(); !kmerItLeft.isDone();kmerItLeft.next())
-        {
-            l1--;l2--;
-            string query = "", query2 ="";
-            bool dirLeft = true, dirRight = true;
-            query = kmerModel.toString(kmerItLeft->forward());
-            query2 = kmerModel.toString(kmerItRight->forward());
-            query = kmerModel.toString(kmerItLeft->revcomp());
-            query2 = kmerModel.toString(kmerItRight->revcomp());
-            kmerItRight.next();
-            if (kmerItRight.isDone())
-                break;
-        }
-    }
-    auto end = chrono::steady_clock::now();
-    cout << "Elapsed time in milliseconds (TFR) : "
-         << chrono::duration_cast<chrono::milliseconds>(end - start).count()
-         << " ms" << endl;
-}
-
-void _traverseReadsL(char * file_left, char * file_right ,const FMIndex & fm, const RankOnes & rank,
-                    const SelectOnes & select, size_t kmerSize, DBG & g)
-{
-    cout << "Traversing reads!"<<endl;
-    auto start = chrono::steady_clock::now();
-    /*
-     * Paired_end input banks
-     */
-    IBank* inputBank_left = Bank::open (file_left);
-    IBank* inputBank_right = Bank::open(file_right);
-
-    PairedIterator <Sequence> *itPair = new PairedIterator<Sequence>(inputBank_left->iterator(), inputBank_right->iterator());
-    ProgressIterator <std::pair<Sequence, Sequence>> progress_iter(itPair, "paired-end", inputBank_left->estimateNbItems());
-
-    /*
-     * Kmer Models
-     */
-    Kmer<SPAN>::ModelCanonical kmerModel (kmerSize);
-    Kmer<SPAN>::ModelCanonical::Iterator kmerItLeft (kmerModel), kmerItRight (kmerModel);
-    cout << "Starting reads traversion"<<endl;
-    for (progress_iter.first(); !progress_iter.isDone(); progress_iter.next())
-    {
-        Sequence &s1 = itPair->item().first;
-        Sequence &s2 = itPair->item().second;
-        size_t l1 = s1.getDataSize(), l2 = s2.getDataSize();
-        kmerItLeft.setData(s1.getData());
-        kmerItRight.setData(s2.getData());
-        /*
-         * Traverse kmers
-         */
-        kmerItRight.first();
-        for (kmerItLeft.first(); !kmerItLeft.isDone();kmerItLeft.next())
-        {
-            l1--;l2--;
-            string query = "", query2 ="";
-            bool dirLeft = true, dirRight = true;
-            query = kmerModel.toString(kmerItLeft->forward());
-            query2 = kmerModel.toString(kmerItRight->forward());
-            auto locations1 = locate(fm, query.begin(), query.begin()+query.size());
-            if (locations1.size() == 0)
-            {
-                query = kmerModel.toString(kmerItLeft->revcomp());
-                locations1 = locate(fm, query.begin(), query.begin()+query.size());
-                dirLeft = false;
-            }
-            if (locations1.size() != 0)
-            {
-                auto locations2 = locate(fm, query2.begin(), query2.begin() + query2.size());
-                if (locations2.size() == 0) {
-                    query2 = kmerModel.toString(kmerItRight->revcomp());
-                    locations2 = locate(fm, query2.begin(), query2.begin() + query2.size());
-                    dirRight = false;
-                }
-                if (locations2.size() != 0)
-                {
-                    size_t hit1 = rank(locations1[0]), hit2 = rank(locations2[0]);
-                    size_t remainingUnitigLeft = (dirLeft) ? select(hit1 + 1) - locations1[0] : locations1[0] -((hit1)?
-                                                                                                                select(hit1):hit1)
-                    , remainingUnitigRight = (dirRight) ? select(hit2 + 1) - locations2[0] : locations2[0] -((hit2)?
-                                                                                                             select(hit2):hit2);
-                    /*cout << "Query1: " << query << " Query2: " << query2 << " Remaining Unitig1: "
-                         << remainingUnitigLeft << " Remaining Unitig2: " << remainingUnitigRight << endl;*/
-                    if (max(l1,l2) < min(remainingUnitigLeft, remainingUnitigRight))
-                        break;
-                    for (size_t i = 0; i < min(remainingUnitigLeft, remainingUnitigRight); ++i)
-                    {
-                        kmerItLeft.next();
-                        //cout << kmerModel.toString(kmerItLeft->forward())<<endl;
-                        kmerItRight.next();
-                        l1--;l2--;
-                        if (kmerItLeft.isDone() || kmerItRight.isDone())
-                            break;
-                    }
-                }
-            }
-            kmerItRight.next();
-            if (kmerItRight.isDone())
-                break;
-        }
-    }
-    auto end = chrono::steady_clock::now();
-    cout << "Elapsed time in milliseconds (L) : "
-         << chrono::duration_cast<chrono::milliseconds>(end - start).count()
-         << " ms" << endl;
-}
-
 void _traverseReads(char * file_left, char * file_right ,const FMIndex & fm, const RankOnes & rank,
         const SelectOnes & select, size_t kmerSize, DBG & g)
 {
@@ -788,6 +687,7 @@ int main (int argc, char* argv[])
     cout << "Params: unitigFile, dolarsFile (placement),tmp_file, kmerSize, graphFile, unitigsFasta, unitigsfile "<<endl;
     char * unitigs = argv[1], * dolars = argv[2]
             , * graphFile = argv[5], * unitigsFa = argv[6], * unitigs_file = argv[7], * append_file = argv[8];
+    //Ajustar para pear
     string file_1 =  string(argv[3]) + "/0.fasta", file_2 = string(argv[3]) + "/1.fasta";
     char * file1 = file_1.c_str(), * file2 = file_2.c_str();
     size_t kmerSize = atoi(argv[4]);
@@ -805,6 +705,11 @@ int main (int argc, char* argv[])
         {
             cout <<"############## Greedy extension enabled ##################"<<endl;
             Parameters::get().greedy = true;
+        }
+        if (strcmp(argv[i],"--virus") == 0)
+        {
+            cout << "### Adjust for viral quasispecies ###"<<endl;
+            Parameters::get().t_data = "virus";
         }
     }
     Parameters::get().kmerSize = kmerSize;
@@ -835,8 +740,8 @@ int main (int argc, char* argv[])
          */
         cout << "Creating hash from: "<<unitigsFa<<endl;
         _buildHash(kmer_map, unitigsFa, g.vertices(), kmerSize, sequence_map, g);
-        _add_frequencies(kmer_map, append_file, g.vertices(), kmerSize, sequence_map, g);
-        _traverseReadsHash(file1, file2, kmer_map, kmerSize, g, g.vertices(), sequence_map);
+        bit_vector reads_with_transitions = _add_frequencies(kmer_map, append_file, g.vertices(), kmerSize, sequence_map, g);
+        _traverseReadsHash(file1, file2, kmer_map, kmerSize, g, g.vertices(), sequence_map, reads_with_transitions);
         cout << "Sanity check!"<<endl;
         vector<vector<size_t>> unitigs = g.export_unitigs(sequence_map);
         _write_unitigs(unitigs, "tmp/testing_unitigs.fa", sequence_map, g.vertices(),kmerSize, false);

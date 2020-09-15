@@ -28,10 +28,10 @@
 // MaxPATH = 3 - MAX_BRANCHES 6
 #define INF 9999999
 #define NO_NEIGH 9999999
-#define MAX_PATH 1000
+#define MAX_PATH 750
 #define MAX_BRANCHES 20
 //Maximum distance for directed graph
-#define D_MAX_PATH 750
+#define D_MAX_PATH 250
 #define D_MAX_BRANCHES 100
 #define COMPLETE 0
 #define CLIQUE_LIMIT 2
@@ -174,6 +174,12 @@ public:
             _map_abundance = unordered_map<OwnNode_t,size_t>();
         }
 
+        UG_Node(size_t id, OwnNode_t val, size_t length):_val(val), _id(id),_length(length),_abundance(0)
+        {
+            _paired_info = Pairedendinformation_t();
+            _map_abundance = unordered_map<OwnNode_t,size_t>();
+        }
+
         UG_Node(OwnNode_t val, Pairedendinformation_t paired_info):_val(val),_id(0),_abundance(0),_paired_info(paired_info)
         {
             _map_abundance = unordered_map<OwnNode_t,size_t>();
@@ -208,11 +214,11 @@ public:
         void add_paired_information(OwnNode_t val)
         {
             _paired_info.emplace(val);
-            if (_map_abundance.find(val) != _map_abundance.end())
+            /*if (_map_abundance.find(val) != _map_abundance.end())
                 _map_abundance[val]++;
             else
                 _map_abundance[val] = 1;
-            _mean_abundance++;
+            _mean_abundance++;*/
         }
 
         void add_paired_information(Pairedendinformation_t pairs)
@@ -266,7 +272,11 @@ public:
         {
             // For quasis - 3
             // For meta - 2
-            bool show = (_val == NO_NEIGH);
+            bool show = Parameters::get().debug;
+            if (show)
+            {
+
+            }
             size_t nodo = (_val >= sequence_map.size())?_val- sequence_map.size():_val;
             //cout << "Node: "<<_val<<" Seq: "<<sequence_map[nodo]<<endl;
             float pivot = 0.0, pivot_less = INF;
@@ -571,7 +581,7 @@ public:
     void export_to_gfa(const vector<string> &, string = "graphs/adbg.gfa");
     void post_process_pairs(const vector<string> &);
 private:
-    void _get_internal_stats();
+    void _get_internal_stats(const vector<string>&);
     size_t _find_edge(OwnNode_t, OwnNode_t, bool = true);
     vector<OwnNode_t> _get_posible_pos(OwnNode_t node_val)
     {
@@ -593,7 +603,7 @@ private:
             size_t&, size_t&,size_t&, size_t&, size_t&,size_t&,vector<vector<OwnNode_t>>&,
                     vector<bool>&, bool, const vector<string> &);
     vector<UG_Node> _get_starting_nodes_basic();
-    void _extension_basic(vector<vector<OwnNode_t>>&, UG_Node, vector<bool>&,std::ofstream&);
+    void _extension_basic(vector<vector<OwnNode_t>>&, UG_Node, vector<bool>&,std::ofstream&, bool = true, OwnNode_t = INF);
     vector<UG_Node> _g_nodes;
     vector<float>_g_nodes_frequency;
     vector<vector<OwnNode_t>> _g_edges, _g_in_edges;
@@ -625,8 +635,10 @@ public:
 
     struct UG_Node
     {
-        UG_Node(size_t id, OwnNode_t val):_val(val), _id(id){}
-        UG_Node(size_t id, OwnNode_t val, float abundance):_val(val), _id(id), _abundance(abundance){}
+        UG_Node(size_t id, OwnNode_t val):_val(val), _id(id) {}
+        UG_Node(size_t id, OwnNode_t val, size_t length):_val(val), _id(id), _length(length) {}
+        UG_Node(size_t id, OwnNode_t val, float abundance):_val(val), _id(id), _abundance(abundance) {}
+        UG_Node(size_t id, OwnNode_t val, float abundance, size_t length): _val(val), _id(id), _length(length), _abundance(abundance) {}
         UG_Node& operator=(const UG_Node & node)
         {
             _val = node._val;
@@ -644,7 +656,7 @@ public:
             _abundance = ceil((MAX_GRANULARITY_ALLOWED*100)*abs(_abundance - max_flow)/max_flow + MAX_GRANULARITY_ALLOWED);
         }
         OwnNode_t _val;
-        size_t _id;
+        size_t _id, _length;
         float _abundance;
     };
     typedef UG_Node Node;

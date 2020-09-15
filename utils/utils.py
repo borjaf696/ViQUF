@@ -64,7 +64,7 @@ class Utils:
             return [path+'/'+t for t in os.listdir(path) if not os.path.isdir(path+'/'+t) and content in t and t.split('.')[-1] in extension]
 
     @staticmethod
-    def get_files_recursive(path, extension = ['fq','fa'], threshold = None):
+    def get_files_recursive(path, extension = ['fq','fa','fasta','fastq'], threshold = None):
         paths, results = [path], []
         while len(paths) > 0:
             p = paths[0]

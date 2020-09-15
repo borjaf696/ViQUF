@@ -85,11 +85,11 @@ class RepresentantGraph:
                     print('LT: ',left_trend,' RT: ',right_trend)
                     return i
         def __kernel_estimation(data_x, data_y):
-            import matplotlib
             import matplotlib.pyplot as plt
             import seaborn as sns; sns.set()
-            SCALE = 1
-            hist = plt.hist(data_y, bins=500, density=True)
+            SCALE = 1.5
+            print(max(data_x))
+            plt.hist(data_y, bins=125, density=True)
             plt.savefig(self.outFile+'_histo.png')
             plt.clf()
             from scipy import stats
@@ -100,27 +100,34 @@ class RepresentantGraph:
             kdepdf = gkde.evaluate(data_x)
             # plot estimated density
             plt.plot(data_x, kdepdf, label='kde', color="g")
-            plt.title('Kernel Density Estimation')
-            plt.savefig(self.outFile+'_density.png')
             # Cross zeros
             Z = np.reshape(kdepdf.T, data_x.shape)
             diff = np.gradient(Z)
             sdiff = np.sign(diff)
             zc = np.where(sdiff[:-1] != sdiff[1:])
             print('Zero crosses: ',zc)
-            first, second = zc[0][0], zc[0][1]
-            return (first+second)/2
-        UPER_FREQ_LIMIT = 500
+            decision = 0
+            for i in range(len(zc[0])-1):
+                first, second, third = zc[0][i], zc[0][i+1], zc[0][i+2]
+                if gkde.evaluate(first) > gkde.evaluate(second) and gkde.evaluate(second) < gkde.evaluate(third):
+                    decision = int((first+second)*0.5)
+                    break
+            plt.vlines(decision, plt.ylim()[0], plt.ylim()[1], linestyles='dashed')
+            plt.title('Kernel Density Estimation')
+            plt.savefig(self.outFile+'_density.png')
+            return decision
+        UPPER_FREQ_LIMIT = 1000
         x,y = [],[]
         X,Y = [],[]
         with open(file, 'r') as f,open(file_w, 'w') as f2:
             for i, line in enumerate(f.readlines()):
                 l_split = line.strip().split('\t')
-                value = 500 if int(l_split[1]) > 500 else int(l_split[1])
-                X.append(int(l_split[0]))
-                Y += [int(l_split[0])]*value
-                if i <= abundanceMin:
-                    continue
+                value = UPPER_FREQ_LIMIT if int(l_split[1]) > UPPER_FREQ_LIMIT else int(l_split[1])
+                if int(l_split[0]) < UPPER_FREQ_LIMIT:
+                    X.append(int(l_split[0]))
+                    Y += [int(l_split[0])]*value
+                    if i <= abundanceMin:
+                        continue
                 x.append(int(l_split[0]))
                 y.append(roundup(int(l_split[1])))
                 f2.write(str(roundup(int(l_split[1])))+'\n')
@@ -130,7 +137,7 @@ class RepresentantGraph:
         #offset = kneedle.knee
         print('Recommended abundance: ', abundanceMin+offset)
         min_freq_estimator = abundanceMin + offset
-        min_freq_estimator_kde = __kernel_estimation(np.array(X)[0:4000], np.array(Y))
+        min_freq_estimator_kde = __kernel_estimation(np.array(X), np.array(Y))
         print('Recommended abundance (kernel estimator): ',min_freq_estimator_kde)
         min_freq_estimator = max(min_freq_estimator_kde, min_freq_estimator)
         return min_freq_estimator
@@ -190,16 +197,17 @@ class RepresentantGraph:
                     self._g.addEdge(ori, target)
 
 if __name__=='__main__':
-    print('Lets do this')
     tmpDir, resDir = 'tmp/', 'tmpresultsDir_'
     readFiles = []
     def __preprocess_karect(path, correct = True):
         global resDir
 
         resDir = resDir + 'Karect/'
+        resDir_paired = resDir+'paired/'
         Utils.remove_dir(resDir)
         Utils.mkdir(resDir)
-        files = Utils.get_files(path, ['fastq'])
+        Utils.mkdir(resDir_paired)
+        files = Utils.get_files_recursive(path, ['fastq'])
         files.sort()
         print('Files: ', files)
         if correct:
@@ -207,11 +215,16 @@ if __name__=='__main__':
             Utils.executecmd(cmd)
         else:
             for i,f in enumerate(files):
-                Utils.cpfile(f, resDir+str(i)+'.fastq')
+                f_splitted = f.split('/')
+                file_name = f_splitted[len(f_splitted)-1].split('.')[0]
+                if file_name[-1] != 1 and file_name[-1] != 2:
+                    Utils.cpfile(f, resDir+str(i)+'.fastq')
+                else:
+                    Utils.cpfile(f, resDir_paired+str(i)+'.fastq')
         Utils.remove_dir(tmpDir)
         Utils.mkdir(tmpDir)
         suffix = 'Ownlatest/'
-        files, outputFile = Utils.get_files(resDir,['fastq']), tmpDir+suffix+'append.fasta'
+        files, outputFile = Utils.get_files_recursive(resDir,['fastq']), tmpDir+suffix+'append.fasta'
         files.sort()
         print('New files corrected: ', files)
         newFiles = BioUtils.renameFastqSeqs(files, tmpDir)

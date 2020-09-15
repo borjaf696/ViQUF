@@ -46,7 +46,10 @@ struct Parameters
             Parameters::get().debug = param;
         if (param_read == "greedy")
             Parameters::get().greedy = param;
+        if (param_read == "t_data")
+            Parameters::get().t_data = param;
     }
+    string t_data = "virus";
     double missmatches;
     size_t genome_size = 0;
     double num_unique_kmers = 0;
@@ -127,6 +130,12 @@ struct Common {
         bool reverse = (place >= sequence_map.size());
         string seq = sequence_map.at(reverse?place - sequence_map.size():place);
         return ((reverse)?Sequence(seq.c_str()).getRevcomp():seq);
+    }
+
+    static size_t return_index(const vector<string> & sequence_map, size_t place)
+    {
+        bool reverse = (place >= sequence_map.size());
+        return (place >= sequence_map.size())?place - sequence_map.size():place;
     }
 };
 
