@@ -67,7 +67,7 @@ Version actual:
             + Obtener el flujo esperado entre A-B (como la frecuencia de la arista) y no añadir los caminos una vez alcanzado el flujo esperado (el flujo esperado
             según nuestra nueva aproximación es el flujo (sin ajustar) de las aristas)
             + Chequear los "paths": Si paths entre A -> B, path_1 (n1,n2) y path_2 (n3,n4) donde subset(n1,n3) y in_parent(B) > 1 entonces remove(path_2(n1,n3))...
-            !Chequear!
+            + Dar score a los caminos en función del porcentaje de nodos que pertenecen a ambos nodos (padre e hijo). Penalizar caminos muy enmarañados ¡TODO!
         - Offset network flow to solution flow:
             + Available_flow[(x,y)] + Offset_flow(y,x) - Offset_flow(x,y)
         - Cambiar a la versión de aristas con capacidad 1 tantas como flujo (máximo flujo en las aristas) e incorporar
@@ -77,6 +77,10 @@ Version actual:
             + Usar flujo reajustado - usar la frecuencia entre (A,B) reajustar el flujo como:
                 * max_freq - abs(freq(A,B) - freq(p_a,p_b)) (manejado por READJUST) - TODO: Mirar si se están cogiendo bien los valores (en el orden adecuado)
                 * Nueva corrección - normalización del flujo en la red: New_max*(abs(val-max))/max+New_min
+                * Corrección: new_flow - se va calculando a medida que se avanza.
+                    * Min sum set cover! (algoritmo de la maquina expendedora)
+                        ** Ordenamos el conjunto de flujo y vamos asignando hasta llenar - definir límite:
+                            ** 10% del valor del flujo
         *** Preprocesado ***
         - Se ha incluido la versión del knee (Elbow) para el cálculo conservador del límite.
 
@@ -88,11 +92,34 @@ Version actual:
         - Añadidos además los nodos intermedios de entrada como fake nodes -> estos no se tendrán en cuenta en la incorporación de los caminos pero si como posibles constructores
         de los mismos. La idea es quedarnos con los legítimos esquivando los falsos. (__reach incorpora in_nodes y se maneja con true_nodes); pero ojo solo se añade 1 y cuando
         se realiza un split del camino (se encuentra un nodo branched entonces se resetea). ¿Para que agregar 40 diferentes si realmente a nosotros nos interesa la legitimidad en
-        una línea recta?
-
+        una línea recta? La correción que se hizo metiendo el peso de los caminos y reajustando es un auténtico lío por que no se sabe nunca que valor se debe poner.
+        Solución - incluir todo lo del medio que implique un incremento o cambio de flujo - de esta manera evitamos el flujo exógeno y lo tratamos de manera razonable.
+        - Control de alcance de nodos - si llegas a un nodo tantas veces como indegree tiene cortas la extensión, sino la mantienes. El propósito de esto es evitar o más
+        bien permitir que un nodo sea alcanzado desde distintas vías dado que esto puede modificar el valor de flujo asumido por este.
+        - Reajuste del flujo - si ocurre la casuística:
+            * In_flow < (1+rate)*out_flow, entonces se ha de evaluar el out_flow, ¿como?:
+                * Si ninguno de los vecinos tiene continuación con (1+rate)*flujo < ref, donde la ref es la conexión entre el nodo a evaluar y el hijo, entonces
+                se define el nuevo flujo como: in_flow*ref_neigh/out_flow, para cada vecino
+                * Si alguno de los vecinos tiene un flujo menor, entonces todo el flujo del camino se cambia al flujo calculado y el resto de nodos se reparten
+                el in_flow restante: in_flow-lowest_flow - TODO: Corrección! Empezamos en el padre y avanzamos, vamos siguiendo la topología del grafo, aseguramos
+                coherencia + podemos usar planteamiento recursivo
+                * Corrección - ajustamos por proximidad. ¿Como?:
+                    * in_flow - min(unario) = diff
+                    * trad = sum(diff) - min(unario) - trad/sum(trads)*in_flow -> el valor más alto para el más próximo.
+                    * Caso in_degree > 1 out_degree > 1 y in_flow != out_flow: en este tipo de casos vamos a tratar cada entrada de manera individual a nivel de
+                    hebra:
+                        * Hebra 1 - escala hebra 0.5:
+                        * Vecinos_freq*0.5 - llenamos la freq_hebra con los vecinos de mayor a menos y manejamos solo ese grupo de vecinos escogidos.
+        - Se ha eliminado la condición de PATH-Cover
+        - Cambio MIN_FLOW_PATH - de 50 a 30
         **** Paired-end ****
         - New trial - vamos a asociar los pe_information con cada par de nodos:
             + Usamos un bitmap para marcar las lecturas que efectivamente guardan información de transición de unitigs.
             + Asociamos la información según corresponda:
                 ++ u1 - [u2,u3] = getNeighbors(u1); paired-end(u1,u2) paired-end(u1,u3)
                 ++ Recordar rc
+
+
+        **** Paso 1 ****
+            * Polish el grafo:
+                * Eliminación de cc sueltas de escasa longitud

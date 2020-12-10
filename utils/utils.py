@@ -9,6 +9,7 @@ class Utils:
     @staticmethod
     def cpfile(source, dest):
         copyfile(source, dest)
+        return dest
 
     @staticmethod
     def getcwd():
@@ -107,6 +108,15 @@ class Utils:
                 with open(f,'r') as f_read:
                     for line in f_read.readlines():
                         out_file.write(line)
+        return output_file
+
+    @staticmethod
+    def append_files_bash(list_files, output_file):
+        outDir = '/'.join(output_file.split('/')[:-1])
+        if not Utils.exists(outDir):
+            Utils.mkdir(outDir)
+        cmd = ['cat']+[t for t in list_files]
+        Utils.executecmd(cmd, output_file)
         return output_file
 
     @staticmethod
@@ -272,6 +282,12 @@ class BioUtils:
                 if results[seq]['evalue'] > evalue:
                     results[seq] = {'hmm':hmm, 'evalue':evalue}
         return results
+
+    @staticmethod
+    def fastqtofasta(in_fastq, out_fasta):
+        cmd = ['sed', '-n' ,'1~4s/^@/>/p;2~4p', in_fastq]
+        Utils.executecmd(cmd, out_fasta)
+        return out_fasta
 
     @staticmethod
     def renameFastqSeqs(files, outDir,format = 'fasta'):

@@ -10,6 +10,11 @@ CXXFLAGS += ${GATBFLAGS}
 LDFLAGS= -L$(GATB_LIB) -lgatbcore  -lpthread -lhdf5 -lz -std=c++0x -ldl -static
 SDSLFLAGS = -L ~/lib -lsdsl -ldivsufsort -ldivsufsort64
 
+#Sequences processment - corregir boost
+seq_obj := ${patsubst %.cpp,%.o,${wildcard lib/sequence/*.cpp}}
+lib/sequence/%.o: lib/sequence/%.cpp lib/sequence/*.h
+	${CXX} -c ${CXXFLAGS} $< -o $@
+
 #Graph
 graphObj := ${patsubst %.cpp,%.o,${wildcard lib/graph/*.cpp}}
 lib/graph/%.o: lib/graph/%.cpp lib/graph/*.h
@@ -31,11 +36,11 @@ mCodeGatb := src/main.o
 all: ${m_main_obj} ${graphObj}
 	${CXX} ${graphObj} ${mCodeRelease} -o bin/output.out ${LDFLAGS} ${SDSLFLAGS}
 
-meta: ${m_main_obj} ${graphObj}
-	${CXX} ${graphObj} ${mCodeRelease} -o bin/meta.out ${LDFLAGS} ${SDSLFLAGS}
+meta: ${m_main_obj} ${graphObj} ${seq_obj}
+	${CXX} ${seq_obj} ${graphObj} ${mCodeRelease} -o bin/meta.out ${LDFLAGS} ${SDSLFLAGS}
 
-gatb :${mCodeGatb}
-	${CXX} ${mCodeGatb} -o bin/basic.out ${LDFLAGS} ${SDSLFLAGS}
+gatb :${mCodeGatb} ${seq_obj}
+	${CXX} ${seq_obj} ${mCodeGatb} -o bin/basic.out ${LDFLAGS} ${SDSLFLAGS}
 
 
 #Clean
@@ -43,3 +48,4 @@ clean:
 	-rm ${graphObj}
 	-rm ${m_main_obj}
 	-rm ${extra_obj}
+	-rm ${seq_obj}

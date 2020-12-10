@@ -11,9 +11,6 @@
 	#include <map>
 	#include <string>
 	#include <limits>
-	#ifndef UTILS_H
-		#include "../utils/utils.h"
-	#endif
 	#include "sequence.h"
 
 	using namespace std;
@@ -245,41 +242,6 @@
 			_seqIndex = sc._seqIndex;
 			g_nextSeqId = sc.g_nextSeqId;
 			return *this;
-		}
-
-		//Sampling
-		const string sampling(float sampleRate, size_t numSamples, string preffix)
-		{
-			/*
-             * Prepare file sys
-             */
-			string preffixBase = "sample/";
-			System::createdir(preffixBase);
-			preffixBase+=preffix+"/";
-			System::createdir(preffixBase);
-			cout << "File: "<<preffixBase<<endl;
-			for (size_t i = 0; i < numSamples; ++i)
-			{
-				vector<FastaRecord::Id> readsIds;
-				for (size_t j = 0; j < ceil(size()/2*sampleRate); j++)
-				{
-					size_t random = rand() % size();
-					random = (random%2 == 0)?random:random-1;
-					readsIds.push_back(FastaRecord::Id(random));
-				}
-				FILE * fout = fopen((preffixBase+to_string(i)+".fasta").c_str(),"w");
-				if (!fout)
-					throw std::runtime_error("Cant't open "+preffixBase);
-				for (auto id:readsIds)
-				{
-					string corrected_read = getSeq(id).str()+"\n";
-					string header = ">"+to_string(id.getId())+"\n";
-					fwrite(header.data(), sizeof(header.data()[0]), header.size(), fout);
-					fwrite(corrected_read.data(), sizeof(corrected_read.data()[0]), corrected_read.size(), fout);
-				}
-				fclose(fout);
-			}
-			return preffixBase;
 		}
 
 		//ShowInfo

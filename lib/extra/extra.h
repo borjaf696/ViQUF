@@ -49,6 +49,31 @@ struct Parameters
         if (param_read == "t_data")
             Parameters::get().t_data = param;
     }
+
+    void check_cmd_line(int argc, char* argv[])
+    {
+        for (size_t i = 0; i < argc; i++)
+        {
+            if (strcmp(argv[i],"--debug") == 0)
+                Parameters::get().debug = true;
+            if (strcmp(argv[i],"--greedy") == 0)
+                Parameters::get().greedy = true;
+            if (strcmp(argv[i],"--virus") == 0)
+                Parameters::get().t_data = "virus";
+        }
+        Parameters::get().kmerSize = atoi(argv[4]);
+    }
+
+    void print_info()
+    {
+        cout << "################ Execution Information #################"<<endl;
+        cout << "Data type: "<<t_data<<endl;
+        cout << "Kmer size: "<<kmerSize<<endl;
+        cout << "Metagenomic parameters: "<<metagenomic<<endl;
+        cout << "Debugging: "<<debug<<endl;
+        cout << "Greedy extension: "<<greedy<<endl;
+        cout << "########################################################"<<endl;
+    }
     string t_data = "virus";
     double missmatches;
     size_t genome_size = 0;
@@ -70,6 +95,14 @@ struct Op_Container{
         for (auto s: target)
             src.push_back(s);
     }
+    template<typename T>
+    static unordered_set<T> to_set(const vector<T> & src )
+    {
+        unordered_set<T> out;
+        for (auto s: src)
+            out.emplace(s);
+        return out;
+    }
 };
 /*
  * Maths operations
@@ -79,13 +112,13 @@ struct Maths{
     template<typename T>
     static T my_round(T value, bool up = false)
     {
-        float result = value, first_val = 1, jump = 10;
+        float result = value, first_val = 10, jump = 10;
         while (result > MARGIN)
         {
             first_val *= jump;
             result = value / first_val;
         }
-        return ((!up)?floor(value / first_val):ceil(value/first_val)) * first_val;
+        return ((!up)?floor(value / first_val):round(value/first_val)) * first_val;
     }
 
     /*
@@ -104,7 +137,6 @@ struct Maths{
         }
         return container[index];
     }
-
     /*
      * Median
      */
@@ -136,6 +168,18 @@ struct Common {
     {
         bool reverse = (place >= sequence_map.size());
         return (place >= sequence_map.size())?place - sequence_map.size():place;
+    }
+    static size_t rev_comp_index(const size_t total_unitigs, size_t place)
+    {
+        return (place >= total_unitigs/2)?place - total_unitigs/2:place + total_unitigs/2;
+    }
+    template<typename T>
+    static float sum_vector(const vector<T> & v1)
+    {
+        float total = 0;
+        for (auto v:v1)
+            total += (float) v;
+        return (float) total;
     }
 };
 

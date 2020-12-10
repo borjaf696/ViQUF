@@ -31,6 +31,7 @@ class RepresentantGraph:
         def __init__(self):
             self._graph = dict()
             self._freqs = dict()
+            self._lengths = dict()
 
         def addVertex(self, u):
             self._graph[u] = []
@@ -42,6 +43,9 @@ class RepresentantGraph:
         def addFreq(self, u, frec):
             self._freqs[u] = frec
 
+        def addLength(self, u, length):
+            self._lengths[u] = length
+
         def exportGraph(self, outputFile):
             with open(outputFile, 'w+') as fWrite:
                 numKeys = len(self._graph.keys())
@@ -50,23 +54,25 @@ class RepresentantGraph:
                     fWrite.write(str(key)+' ')
                     for v in val:
                         fWrite.write(str(v)+' ')
-                    fWrite.write(str(self._freqs[key])+' \n')
+                    fWrite.write(str(self._freqs[key])+' ')
+                    fWrite.write(str(self._lengths[key])+' \n')
 
-    def __init__(self, path = None, kmerSize = 30, abundanceMin = 1):
+    def __init__(self, path = None, kmerSize = 30, abundanceMin = 1, meta = False):
         self._g, self._kmerSize = self.GraphStruct(), int(kmerSize)
         # Primer lanzamiento para definir la abundancia
         args = {'in':path, 'kmerSize':kmerSize,'abundanceMin':abundanceMin,'out':self.outFile}
         cmd = [self.exeBcalm,'-in',args['in'],'-histo','1','-kmer-size',args['kmerSize'],'-abundance-min',args['abundanceMin'],'-out',args['out']]
         print('Bcalm cmd (first launch): ',cmd)
         Utils.executecmd(cmd)
-        args['abundanceMin'] = str(self.__study_frequency_histograms(int(abundanceMin)))
+        args['abundanceMin'] = str(self.__study_frequency_histograms(int(abundanceMin), meta = meta))
         self.__produceGraphFile(args)
         self.__indexGFA(self.outFile)
-
         self._g.exportGraph(self.outFile+self._graphExt)
         print('End!')
 
-    def __study_frequency_histograms(self, abundanceMin = 1):
+    def __study_frequency_histograms(self, abundanceMin = 1, meta = False):
+        if meta:
+            return 3
         file, file_w = self.outFile+'.histo', self.outFile+'.histo.txt'
         def roundup(x):
             return int(math.ceil(x / 10.0)) * 10
@@ -87,7 +93,8 @@ class RepresentantGraph:
         def __kernel_estimation(data_x, data_y):
             import matplotlib.pyplot as plt
             import seaborn as sns; sns.set()
-            SCALE = 1.5
+            from datetime import datetime
+            SCALE = 1.0
             print(max(data_x))
             plt.hist(data_y, bins=125, density=True)
             plt.savefig(self.outFile+'_histo.png')
@@ -95,18 +102,26 @@ class RepresentantGraph:
             from scipy import stats
             plt.hist(data_y, bins=100, density=True)
             gkde=stats.gaussian_kde(data_y)
-            print('Kde factor: ', gkde.factor)
+            now = datetime.now()
+            current_time = now.strftime("%H:%M:%S")
+            print('Kde factor: ', gkde.factor,' ',current_time)
             gkde.set_bandwidth(bw_method=gkde.factor*SCALE)
-            kdepdf = gkde.evaluate(data_x)
+            data_x_tmp = data_x[0:100] if meta else data_x
+            kdepdf = gkde.evaluate(data_x_tmp)
+            now = datetime.now()
+            current_time = now.strftime("%H:%M:%S")
+            print('End evaluation. ', current_time)
             # plot estimated density
-            plt.plot(data_x, kdepdf, label='kde', color="g")
+            plt.plot(data_x_tmp, kdepdf, label='kde', color="g")
             # Cross zeros
-            Z = np.reshape(kdepdf.T, data_x.shape)
+            Z = np.reshape(kdepdf.T, data_x_tmp.shape)
             diff = np.gradient(Z)
             sdiff = np.sign(diff)
             zc = np.where(sdiff[:-1] != sdiff[1:])
-            print('Zero crosses: ',zc)
-            decision = 0
+            now = datetime.now()
+            current_time = now.strftime("%H:%M:%S")
+            print('Zero crosses: ',zc,' ',current_time)
+            decision = zc[0][0]
             for i in range(len(zc[0])-1):
                 first, second, third = zc[0][i], zc[0][i+1], zc[0][i+2]
                 if gkde.evaluate(first) > gkde.evaluate(second) and gkde.evaluate(second) < gkde.evaluate(third):
@@ -116,7 +131,8 @@ class RepresentantGraph:
             plt.title('Kernel Density Estimation')
             plt.savefig(self.outFile+'_density.png')
             return decision
-        UPPER_FREQ_LIMIT = 1000
+
+        UPPER_FREQ_LIMIT = 999999 if meta else 1000
         x,y = [],[]
         X,Y = [],[]
         with open(file, 'r') as f,open(file_w, 'w') as f2:
@@ -139,7 +155,7 @@ class RepresentantGraph:
         min_freq_estimator = abundanceMin + offset
         min_freq_estimator_kde = __kernel_estimation(np.array(X), np.array(Y))
         print('Recommended abundance (kernel estimator): ',min_freq_estimator_kde)
-        min_freq_estimator = max(min_freq_estimator_kde, min_freq_estimator)
+        min_freq_estimator = min(min_freq_estimator_kde, min_freq_estimator) if meta else max(min_freq_estimator_kde, min_freq_estimator)
         return min_freq_estimator
 
     def getOutFile(self):
@@ -153,21 +169,21 @@ class RepresentantGraph:
         cmd = ['python',self.exeGFA,args['out']+tail,args['out'],args['kmerSize']]
         print('To GFA cmd: ', cmd)
         Utils.executecmd(cmd)
-        print('To FM')
-        BioUtils.fastToFm(args['out']+tail,args['out']+'.FM')
+        #print('To FM')
+        #BioUtils.fastToFm(args['out']+tail,args['out']+'.FM')
 
     def __indexGFA(self, file):
         numSeqs, min, max = 0, 9999999, 0
         histogram = [0]*10000
-        frecs = []
+        frecs, lengths = [], []
         with open(file, 'r') as f:
             for line in f.readlines():
                 if line[0] == 'S':
                     line_split = line.split('\t')
                     dnaSeq = line_split[2]
                     frecs.append(line_split[5].split(':')[2].strip())
-                    unitigLength, pivote = len(dnaSeq), int(len(dnaSeq)/2)
-                    self.seqs.append(Seq(dnaSeq[pivote:pivote+self._kmerSize], generic_dna))
+                    unitigLength = int(line_split[3].split(':')[2].strip())
+                    lengths.append(unitigLength)
                     numSeqs += 1
                     if unitigLength > len(histogram):
                         histogram = histogram + [0]*(unitigLength - len(histogram) + 1)
@@ -184,8 +200,10 @@ class RepresentantGraph:
                 self._g.addVertex(i)
                 if i >= numSeqs:
                     self._g.addFreq(i, frecs[i - numSeqs])
+                    self._g.addLength(i, lengths[i - numSeqs])
                 else:
                     self._g.addFreq(i, frecs[i])
+                    self._g.addLength(i, lengths[i])
         with open(file, 'r') as f:
             for line in f.readlines():
                 if line[0] == 'L':
@@ -213,24 +231,21 @@ if __name__=='__main__':
         if correct:
             cmd = ['karect','-correct','-matchtype=hamming','-celltype=haploid','-resultdir='+resDir]+['-inputfile='+t for t in files]
             Utils.executecmd(cmd)
-        else:
-            for i,f in enumerate(files):
-                f_splitted = f.split('/')
-                file_name = f_splitted[len(f_splitted)-1].split('.')[0]
-                if file_name[-1] != 1 and file_name[-1] != 2:
-                    Utils.cpfile(f, resDir+str(i)+'.fastq')
-                else:
-                    Utils.cpfile(f, resDir_paired+str(i)+'.fastq')
+            files = Utils.get_files_recursive(resDir,['.fastq'])
         Utils.remove_dir(tmpDir)
         Utils.mkdir(tmpDir)
         suffix = 'Ownlatest/'
-        files, outputFile = Utils.get_files_recursive(resDir,['fastq']), tmpDir+suffix+'append.fasta'
+        outputFile = tmpDir+suffix+'append.fasta'
         files.sort()
         print('New files corrected: ', files)
-        newFiles = BioUtils.renameFastqSeqs(files, tmpDir)
+        print('Renaiming sequences/files: ')
+        # Opcion A
+        # newFiles = BioUtils.renameFastqSeqs(files, tmpDir)
+        # Opcion B
+        newFiles = [BioUtils.fastqtofasta(f,tmpDir+'/'+str(i)+'.fasta') for i,f in enumerate(files)]
         print('NewFiles: ', newFiles)
         Utils.mkdir(tmpDir+suffix)
-        return [Utils.append_files(newFiles, outputFile), newFiles[0]]
+        return [Utils.append_files_bash(newFiles, outputFile), newFiles[0]]
 
     def __preprocess_tgs(path, path_pe = None, kmer_size = 30, technique = 'standard'):
         global resDir
@@ -317,11 +332,17 @@ if __name__=='__main__':
 
     type = sys.argv[4]
     if type == 'ngs':
-        pear = (sys.argv[6] == '--joined')
-        pathIn = __preprocess_karect(sys.argv[1], sys.argv[5] == '--correct')
+        pear, correction, meta = (sys.argv[6] == '--joined'), (sys.argv[5] == '--correct'), (sys.argv[7] == '--meta')
+
+        print('*************** Summary *********************')
+        print('Pear: ', pear)
+        print('Correct: ', correction)
+        print('Meta: ', meta)
+        print('*********************************************')
+        pathIn = __preprocess_karect(sys.argv[1], correction)
         path, kmerSize, abundanceMin = pathIn[0], sys.argv[2], sys.argv[3]
         print('Path: ', path)
-        rG = RepresentantGraph(path, kmerSize, abundanceMin)
+        rG = RepresentantGraph(path, kmerSize, abundanceMin, meta = meta)
     elif type == 'tgs':
         method = 'lordec'
         if method == 'consent':

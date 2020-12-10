@@ -15,14 +15,13 @@
 #ifndef GATB_TRIAL_GRAPH_H
     #include "../lib/graph/graph.h"
 #endif
-
 #define SPAN 128
 #define ILLUMINA true
 #define VERSION 2
 #define MIN_LENGTH 500
 
 #define STATIC_RESERVE 1024*1024*1024
-#define HAND_THRESHOLD 30
+#define HAND_THRESHOLD 15 //Previo 30
 
 using namespace std;
 using namespace sdsl;
@@ -126,40 +125,35 @@ void _buildHash(unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_map,
         g.set_length(num_unitig,l);
         g.set_length(num_unitig + total_unitigs/2, l);
         kmerIt.setData(seq.getData());
+        sequence_map.push_back(seq.toString());
+        if (!g.getNodeState(num_unitig))
+        {
+            num_unitig++;
+            continue;
+        }
         for (kmerIt.first(); !kmerIt.isDone();kmerIt.next())
         {
-            if (kmer_map.find(kmerIt->forward()) != kmer_map.end() || kmer_map.find(kmerIt->revcomp()) != kmer_map.end())
+            if (pos == l-kmerSize)
             {
-                if (pos != 0 && pos != l - kmerSize)
+                kmer_map[kmerIt->forward()] = stored_info(pos, l - pos - 1, num_unitig, l);
+                kmer_map[kmerIt->revcomp()] = stored_info(l - pos - 1, pos, total_unitigs / 2 + num_unitig,l);
+                pos++;
+            } else if (pos == 0) {
+                if (kmer_map.find(kmerIt->forward()) == kmer_map.end())
                 {
                     kmer_map[kmerIt->forward()] = stored_info(pos, l - pos - 1, num_unitig, l);
                     kmer_map[kmerIt->revcomp()] = stored_info(l - pos - 1, pos, total_unitigs / 2 + num_unitig,l);
                     pos++;
                 }
-            }else {
+            } else {
                 kmer_map[kmerIt->forward()] = stored_info(pos, l - pos - 1, num_unitig,l);
                 kmer_map[kmerIt->revcomp()] = stored_info(l - pos - 1, pos, total_unitigs / 2 + num_unitig,l);
                 pos++;
             }
         }
-        sequence_map.push_back(seq.toString());
         num_unitig++;
     }
-    /*// Showing unitigs
-    cout << "Unitigs: "<<endl;
-    for (auto u: sequence_map)
-    {
-        cout << "   Number: "<<u.first<<" ";
-        cout << "   Sequence: "<<u.second<<endl;
-    }
-    // Displaying kmers
-    cout <<"Kmers: "<<endl;
-    for (auto u: kmer_map)
-    {
-        cout <<" Kmer: "<<kmerModel.toString(u.first)<<endl;
-        u.second.print();
-    }*/
-    cout <<"Number of unitigs: "<<num_unitig<<endl;
+    cout <<"Number of unitigs: "<<num_unitig<<"\nNumber of active nodes: "<<g.vertices(true)<<"\nNumber of active edges: "<<g.edges()<<endl;
     cout <<"Number of k-mers: "<<kmer_map.size()<<endl;
     auto end = chrono::steady_clock::now();
     cout << "Elapsed time in milliseconds (FULL) : "
@@ -190,9 +184,11 @@ bit_vector _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & 
     size_t number_of_reads = (*inputBank).getSize(), totalSize, maxSize;
     inputBank->estimate (number_of_reads,totalSize, maxSize);
     ProgressIterator<Sequence> it (*inputBank, "Iterating sequences");
+    number_of_reads = ceil(1.1*number_of_reads);
     cout << "Number of reads: "<<number_of_reads<<endl;
+    cout << "Number of k-mers under processment: "<<kmer_map.size()<<endl;
     bit_vector reads_with_transition(number_of_reads,0);
-    size_t n_read = 0;
+    size_t n_read = 0, cuenta = 0;
     /*
      * Kmer models
      */
@@ -209,7 +205,7 @@ bit_vector _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & 
         bool f_s_l = true;
         Sequence& seq = it.item();
         size_t l = seq.getDataSize(), pos = 0;
-        //cout <<"Sequence: "<<seq.toString()<<endl;
+        //cout <<"Sequence: "<<seq.toString()<<" "<<n_read<<endl;
         kmerIt.setData(seq.getData());
         for (kmerIt.first(); !kmerIt.isDone();kmerIt.next()) {
             bool forward = true;
@@ -221,21 +217,16 @@ bit_vector _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & 
             }
             if (map_iterator_left != kmer_map.end()) {
                 size_t unitig_left = (*map_iterator_left).second._unitig;
-                //cout <<"Find: "<<kmerModel.toString(kmerIt->forward())<<" "<<unitig_left<<endl;
-                size_t rev_comp_unitig_left = (unitig_left >= total_unitigs/2)?unitig_left-total_unitigs/2:unitig_left+total_unitigs/2;
-                /*if (cur_unitig_left == 924 || cur_unitig_left == (924 - total_unitigs/2))
-                    cout << cur_unitig_left<<" "<<unitig_left<<endl;*/
+                size_t rev_comp_unitig_left = Common::rev_comp_index(total_unitigs,unitig_left);
                 if (cur_unitig_left != NO_NEIGH) {
-                    /*cout << "Kmer Nuevo: "<<kmerModel.toString(kmerIt->forward())<<" "<<unitig_left<<endl;
-                    cout << "Current: "<<cur_unitig_left<<" Unitig: "<<unitig_left<<endl;*/
-                    if (unitig_left != (cur_unitig_left + total_unitigs / 2) && unitig_left != cur_unitig_left) {
+                    size_t difference = abs((int)unitig_left-(int)cur_unitig_left);
+                    if (difference != 0 && difference != (total_unitigs/2)) {
                         if (!reads_with_transition[n_read]) {
                             if (Parameters::get().debug)
                                 reads_transitions << "Read included: "<<n_read<<endl;
                             reads_with_transition[n_read] = 1;
                         }
-                        size_t cur_rev_comp = (cur_unitig_left >= total_unitigs / 2) ?
-                                              cur_unitig_left - total_unitigs / 2 : cur_unitig_left + total_unitigs / 2;
+                        size_t cur_rev_comp = Common::rev_comp_index(total_unitigs, cur_unitig_left);
                         if (f_s_l) {
                             if (forward) {
                                 g.add_read(cur_unitig_left, unitig_left, quantity, true);
@@ -262,28 +253,14 @@ bit_vector _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & 
                     if (g.out_degree(unitig_left) == 1)
                         reads_with_transition[n_read] = 1;
                     cur_unitig_left = unitig_left;
-                    //cout << "Kmer Inicial: "<<kmerModel.toString(kmerIt->forward())<<endl;
                     f_s_l = forward;
                     quantity = 1;
                 }
             } else {
-                if (quantity != 0 && cur_unitig_left != NO_NEIGH)
-                {
-                    //g.add_read(cur_unitig_left, quantity);
-                    size_t cur_rev_comp = (cur_unitig_left >= total_unitigs / 2) ?
-                                          cur_unitig_left - total_unitigs / 2 : cur_unitig_left + total_unitigs / 2;
-                    //g.add_read(cur_rev_comp, quantity);
-                }
                 cur_unitig_left = NO_NEIGH;
                 quantity = 1;
                 f_s_l = true;
             }
-        }
-        if (quantity != 0 && cur_unitig_left != NO_NEIGH) {
-            //g.add_read(cur_unitig_left, quantity);
-            size_t cur_rev_comp = (cur_unitig_left >= total_unitigs / 2) ?
-                                  cur_unitig_left - total_unitigs / 2 : cur_unitig_left + total_unitigs / 2;
-            //g.add_read(cur_rev_comp, quantity);
         }
         n_read++;
     }
@@ -295,8 +272,18 @@ bit_vector _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & 
     if (Parameters::get().debug)
         g.print(INF, INF, "graphs/dbg.txt");
     g.subsane(sequence_map);
+    g.polish();
+    cout << "Correcting kmer map:"<<endl;
+    vector<Kmer<SPAN>::Type> kmers_to_remove;
+    for (auto k_v:kmer_map) {
+        if (!g.getNodeState(k_v.second._unitig))
+            kmers_to_remove.push_back(k_v.first);
+    }
+    for (auto k: kmers_to_remove)
+        kmer_map.erase(k);
+    cout <<"**After polishing**\nNumber of active nodes: "<<g.vertices(true)<<"\nNumber of active edges: "<<g.edges()<<"\nNumber of kmers: "<<kmer_map.size()<<endl;
     rank_support_v5<> rb(&reads_with_transition);
-    cout << "Number of reads with transitions: "<<rb(number_of_reads)<<" out of "<<((float)rb(n_read) / (float)n_read)*100<<"%"<<endl;
+    cout << "Number ofreads with transitions: "<<rb(number_of_reads)<<" out of "<<((float)rb(n_read) / (float)n_read)*100<<"%"<<endl;
     return reads_with_transition;
 }
 /*
@@ -338,10 +325,13 @@ void _traverseReadsHash(char * file_left, char * file_right
      * (TRIAL) Bloom filter for paired-end
      */
     auto preCounters = new std::atomic<unsigned char>[STATIC_RESERVE];
+    for (size_t i = 0; i < STATIC_RESERVE; ++i)
+        preCounters[i] = 0;
 
     cout << "Paired-end traversion"<<endl;
     for (progress_iter.first(); !progress_iter.isDone(); progress_iter.next())
     {
+        size_t number_of_kmer = 0;
         if (Parameters::get().t_data == "virus")
         {
             if (!reads_with_transitions[cnr++])
@@ -399,6 +389,8 @@ void _traverseReadsHash(char * file_left, char * file_right
                             rev_comp_unitig_right = (unitig_right >= total_unitigs / 2) ? unitig_right -
                                                                                           total_unitigs / 2 :
                                                     unitig_right + total_unitigs / 2;
+                    if (!g.getNodeState(unitig_left) || !g.getNodeState(unitig_right))
+                        cout << "Impossible!"<<endl;
                     if (pos_left >= rate || pos_left >= (u_length - rate))
                     {
                         uint32_t key, rc_key;
@@ -472,11 +464,6 @@ void _traverseReadsHash(char * file_left, char * file_right
                         }
                     }
                 }
-            }else{
-                /*pe_information << "Kmer not found: "<<kmerModel.toString(kmerItLeft->forward())
-                    << " Read: "<<number_reads<<" Pos: "<<(s1.getDataSize()-l1)<<endl;*/
-                /*cout << "Kmer no localizado: "<<kmerModel.toString(kmerItLeft->forward())
-                <<" Read: "<<number_reads<<" Pos: "<<(s1.getDataSize()-l1)<<endl;*/
             }
             l1--;l2--;
             kmerItRight.next();
@@ -497,7 +484,7 @@ void _traverseReadsHash(char * file_left, char * file_right
             {
                 size_t node_left = (i >> 15), node_right = (i & 32767);
                 outfile << "Left: "<<node_left<<" - "<<node_right<<" Freq: "<<((int)preCounters[i])<<endl;
-                histogram_file<<((int)preCounters[i])<<endl;
+                histogram_file<<node_left<<","<<node_right<<","<<((int)preCounters[i])<<endl;
             }
         }
         histogram_file.close();
@@ -515,8 +502,11 @@ void _traverseReadsHash(char * file_left, char * file_right
     cout << "Elapsed time in milliseconds (Paired-end) : "
          << chrono::duration_cast<chrono::milliseconds>(end - start).count()
          << " ms" << endl;
-    if (Parameters::get().debug)
+    if (Parameters::get().debug) {
         g.print(INF, INF, "graphs/dbg_postsubsane.txt");
+        g.export_to_gfa(sequence_map, "graphs/dbg_postsubsane.gfa");
+        cout << "Graphs exported as 'txt' and 'gfa'"<<endl;
+    }
 }
 
 /*
@@ -616,11 +606,13 @@ void _traverseReads(char * file_left, char * file_right ,const FMIndex & fm, con
 /*
  * Reporting
  */
+static vector<size_t> DEFAULT_VECTOR;
 void _write_unitigs(vector<vector<size_t>> unitigs
         , char * write_path, const vector<string> & sequence_map
-        , size_t num_unitigs_fw,size_t kmer_size, bool force_write = false)
+        , size_t num_unitigs_fw,size_t kmer_size, bool force_write = false, vector<size_t> & flows = DEFAULT_VECTOR)
 {
     cout << "Writing unitigs: "<<unitigs.size()<<endl;
+    bool write_flows = (flows.size() > 0);
     size_t num_unitigs = 0;
     ofstream outputFile(write_path);
     for (auto unitig:unitigs)
@@ -641,7 +633,10 @@ void _write_unitigs(vector<vector<size_t>> unitigs
         //cout << endl;
         if (full_unitig.length() > MIN_LENGTH || force_write)
         {
-            outputFile << ">"<<num_unitigs++<<endl;
+            if (write_flows)
+                outputFile << ">"<<num_unitigs<<"-"<<flows[num_unitigs++]<<endl;
+            else
+                outputFile << ">"<<num_unitigs++<<endl;
             outputFile << full_unitig;
             outputFile << endl;
         }
@@ -649,7 +644,6 @@ void _write_unitigs(vector<vector<size_t>> unitigs
     cout << "End!"<< endl;
     outputFile.close();
 }
-
 
 void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
         char * write_path, size_t kmer_size, size_t num_unitigs)
@@ -662,6 +656,21 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
         apdbg.print(1, INF);
         apdbg.export_to_gfa(sequence_map);
     }
+    /*
+     * Max flow
+     */
+    float pre_flow = apdbg.to_max_flow_solution();
+    priority_queue<pair<size_t,vector<OwnNode_t>>> unitigs_nf_with_freqs = apdbg.get_min_cost_flow_paths(pre_flow);
+    vector<vector<OwnNode_t>> unitigs_nf;
+    vector<size_t> flows;
+    while(!unitigs_nf_with_freqs.empty()) {
+        pair<size_t,vector<OwnNode_t>> u = unitigs_nf_with_freqs.top();
+        unitigs_nf_with_freqs.pop();
+        unitigs_nf.push_back(u.second);
+        flows.push_back(u.first);
+    }
+    char * write_path_nf = "tmp/unitigs-viaDBG-nf.fasta";
+    _write_unitigs(unitigs_nf, write_path_nf,  sequence_map, g.vertices(), kmer_size, false, flows);
     //vector<vector<size_t>> unitigs = apdbg.export_unitigs(sequence_map, false);
     vector<vector<size_t>> unitigs_2 = apdbg.export_unitigs_basic(sequence_map, false);
     /*cout << "Unitigs!"<<endl;
@@ -690,29 +699,10 @@ int main (int argc, char* argv[])
     //Ajustar para pear
     string file_1 =  string(argv[3]) + "/0.fasta", file_2 = string(argv[3]) + "/1.fasta";
     char * file1 = file_1.c_str(), * file2 = file_2.c_str();
-    size_t kmerSize = atoi(argv[4]);
-    /*
-     * Naive!!!
-     */
-    for (size_t i = 0; i < argc; i++)
-    {
-        if (strcmp(argv[i],"--debug") == 0)
-        {
-            cout << "############## Debug mode enabled #################"<<endl;
-            Parameters::get().debug = true;
-        }
-        if (strcmp(argv[i],"--greedy") == 0)
-        {
-            cout <<"############## Greedy extension enabled ##################"<<endl;
-            Parameters::get().greedy = true;
-        }
-        if (strcmp(argv[i],"--virus") == 0)
-        {
-            cout << "### Adjust for viral quasispecies ###"<<endl;
-            Parameters::get().t_data = "virus";
-        }
-    }
-    Parameters::get().kmerSize = kmerSize;
+    // Parameters read
+    Parameters::get().check_cmd_line(argc, argv);
+    Parameters::get().print_info();
+    size_t kmerSize = Parameters::get().kmerSize;
     FMIndex fmIndex;
     unordered_map<Kmer<SPAN>::Type,stored_info> kmer_map;
     bit_vector bDolars;
@@ -724,6 +714,10 @@ int main (int argc, char* argv[])
     vector<string> sequence_map;
     //unordered_map<size_t, string> sequence_map;
     DBG g = _buildGraph(graphFile);
+    /*
+     * Polishing the graph
+     */
+    g.polish();
     if (VERSION == 1)
     {
         /*

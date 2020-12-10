@@ -28,5 +28,22 @@ Moving into full representative representation - Donete via bcalm
  **HISTOGRAMAS LEENA + CORRECCIÓN SUBSETS** - Done
  ** CORRECCIÓN TAILS NETWORK FLOWS **
  - Agregar el comportamiento según el behaviour - nop no funciona
- - Chequear dataset 15-ZIKV (asegurar frecuencias cuando hay varios vecinos en un camino, tratar de ver como poder asegurarnos las frecuencias...)
+ - Eliminar la basura que hay montada de los in_nodes y usar las frequencias acumuladas: fijarse en el caso del nodo 13. Tiene dos padres 1 verídico y 1 que no nos
+ interesa que aporta 1300 de flujo si lo eliminamos (el flujo cuando recorremos) nos quedamos con un flujo de 700 en el nodo de interés! Hay que eliminar
+ los inflows que no nos interesan.
  - Tratar de pulir el grafo (apdbg) - una vez hayamos asegurado que el resto de cosas van bien! No quiero depender del pulido como paso clave.
+
+ ** Hay que limpiar este codigo **
+ ** Preparar para metagenomica **
+ ** Corregir el tema de la asignación de flujos teniendo en cuenta que el flujo del vecino puede ser mucho menor que los disponibles en las flujos acumulados **
+ ** Flujos - readjust, probar, antes de usar el primer elemento cuando no haya ajuste válido, con la frecuencia de la hebra actual.
+
+ ** Computar aristas transitivas en el grafo:
+    * A -> B,C,D
+    * Para todo n in neighs(A):
+        * Para todo n2 in neighs(A):
+            if n = n2:
+                continue
+            if reach(n,n2):
+                remove(A,n)
+    * En resumen si un nodo hijo es alcanzable a través del resto de hijos entonces eliminamos dicha arista.
