@@ -10,20 +10,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="4458d666-b6f4-4905-bf09-67ebaea7f54d" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/Mods" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/test/post-process.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Makefile" beforeDir="false" afterPath="$PROJECT_DIR$/Makefile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Todo" beforeDir="false" afterPath="$PROJECT_DIR$/Todo" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Versions" beforeDir="false" afterPath="$PROJECT_DIR$/Versions" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/extra/extra.h" beforeDir="false" afterPath="$PROJECT_DIR$/lib/extra/extra.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/graph/graph.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/lib/graph/graph.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/graph/graph.h" beforeDir="false" afterPath="$PROJECT_DIR$/lib/graph/graph.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/sequence/clusterContainer.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/lib/utils/clusterContainer.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/sequence/clusterContainer.h" beforeDir="false" afterPath="$PROJECT_DIR$/lib/utils/clusterContainer.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/sequence/sequence_container.h" beforeDir="false" afterPath="$PROJECT_DIR$/lib/sequence/sequence_container.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/utils/utils.h" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/src/test-meta.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/test-meta.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/test/testBcalm.py" beforeDir="false" afterPath="$PROJECT_DIR$/test/testBcalm.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/utils.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -131,7 +124,7 @@
       <workItem from="1600961688231" duration="103421000" />
       <workItem from="1603358587275" duration="45694000" />
       <workItem from="1604127503265" duration="143535000" />
-      <workItem from="1607443539518" duration="2496000" />
+      <workItem from="1607443539518" duration="63476000" />
     </task>
     <servers />
   </component>
@@ -139,6 +132,10 @@
     <option name="version" value="1" />
   </component>
   <component name="WindowStateProjectService">
+    <state x="704" y="305" width="568" height="390" key="#com.intellij.fileTypes.FileTypeChooser" timestamp="1607592003972">
+      <screen x="67" y="27" width="1853" height="948" />
+    </state>
+    <state x="704" y="305" width="568" height="390" key="#com.intellij.fileTypes.FileTypeChooser/67.27.1853.948@67.27.1853.948" timestamp="1607592003972" />
     <state x="726" y="249" width="524" height="502" key="#com.intellij.refactoring.safeDelete.UnsafeUsagesDialog" timestamp="1602752367943">
       <screen x="67" y="27" width="1853" height="948" />
     </state>
@@ -147,10 +144,10 @@
       <screen x="67" y="27" width="1853" height="948" />
     </state>
     <state x="649" y="323" key="com.intellij.ide.util.TipDialog/67.27.1853.948@67.27.1853.948" timestamp="1607443540907" />
-    <state x="657" y="227" key="run.anything.popup" timestamp="1605348016040">
+    <state x="657" y="227" key="run.anything.popup" timestamp="1608164507021">
       <screen x="67" y="27" width="1853" height="948" />
     </state>
-    <state x="657" y="227" key="run.anything.popup/67.27.1853.948@67.27.1853.948" timestamp="1605348016040" />
+    <state x="657" y="227" key="run.anything.popup/67.27.1853.948@67.27.1853.948" timestamp="1608164507021" />
     <state x="656" y="230" width="672" height="697" key="search.everywhere.popup" timestamp="1604653306390">
       <screen x="67" y="27" width="1853" height="948" />
     </state>

@@ -31,6 +31,7 @@ class RepresentantGraph:
         def __init__(self):
             self._graph = dict()
             self._freqs = dict()
+            self._active = dict()
             self._lengths = dict()
 
         def addVertex(self, u):
@@ -40,17 +41,28 @@ class RepresentantGraph:
         def addEdge(self, u, v):
             self._graph[u].append(v)
 
+        def addActive(self, u, active):
+            self._active[u] = active
+
+        def setActive(self, u, active):
+            self._active[u] = active
+
         def addFreq(self, u, frec):
             self._freqs[u] = frec
 
         def addLength(self, u, length):
             self._lengths[u] = length
 
-        def exportGraph(self, outputFile):
+        def getActive(self, u):
+            return self._active[u]
+
+        def exportGraph(self, outputFile, args):
             with open(outputFile, 'w+') as fWrite:
                 numKeys = len(self._graph.keys())
-                fWrite.write(str(numKeys)+'\n')
+                fWrite.write(str(numKeys)+' '+str(args['abundanceMin'])+' \n')
                 for key, val in self._graph.items():
+                    if not self._active[key]:
+                        continue
                     fWrite.write(str(key)+' ')
                     for v in val:
                         fWrite.write(str(v)+' ')
@@ -65,9 +77,10 @@ class RepresentantGraph:
         print('Bcalm cmd (first launch): ',cmd)
         Utils.executecmd(cmd)
         args['abundanceMin'] = str(self.__study_frequency_histograms(int(abundanceMin), meta = meta))
+        Utils.remove_file('tmp/unitigs')
         self.__produceGraphFile(args)
-        self.__indexGFA(self.outFile)
-        self._g.exportGraph(self.outFile+self._graphExt)
+        self.__indexGFA(self.outFile, args['abundanceMin'])
+        self._g.exportGraph(self.outFile+self._graphExt, args)
         print('End!')
 
     def __study_frequency_histograms(self, abundanceMin = 1, meta = False):
@@ -95,18 +108,19 @@ class RepresentantGraph:
             import seaborn as sns; sns.set()
             from datetime import datetime
             SCALE = 1.0
-            print(max(data_x))
+            data_y_tmp = data_y[np.where(data_y < 500)]
+            data_x_tmp = data_x[0:max(data_y_tmp)]
             plt.hist(data_y, bins=125, density=True)
             plt.savefig(self.outFile+'_histo.png')
             plt.clf()
             from scipy import stats
-            plt.hist(data_y, bins=100, density=True)
+            plt.hist(data_y_tmp, bins=100, density=True)
             gkde=stats.gaussian_kde(data_y)
             now = datetime.now()
             current_time = now.strftime("%H:%M:%S")
             print('Kde factor: ', gkde.factor,' ',current_time)
             gkde.set_bandwidth(bw_method=gkde.factor*SCALE)
-            data_x_tmp = data_x[0:100] if meta else data_x
+            #data_x_tmp = data_x[0:100] if meta else data_x
             kdepdf = gkde.evaluate(data_x_tmp)
             now = datetime.now()
             current_time = now.strftime("%H:%M:%S")
@@ -151,11 +165,11 @@ class RepresentantGraph:
         offset = __vector_trend(y)
         print('Offset: ',offset)
         #offset = kneedle.knee
-        print('Recommended abundance: ', abundanceMin+offset)
         min_freq_estimator = abundanceMin + offset
         min_freq_estimator_kde = __kernel_estimation(np.array(X), np.array(Y))
         print('Recommended abundance (kernel estimator): ',min_freq_estimator_kde)
         min_freq_estimator = min(min_freq_estimator_kde, min_freq_estimator) if meta else max(min_freq_estimator_kde, min_freq_estimator)
+        print('Recommended abundance: ', min_freq_estimator)
         return min_freq_estimator
 
     def getOutFile(self):
@@ -172,24 +186,37 @@ class RepresentantGraph:
         #print('To FM')
         #BioUtils.fastToFm(args['out']+tail,args['out']+'.FM')
 
-    def __indexGFA(self, file):
+    def __indexGFA(self, file, abundanceMin):
         numSeqs, min, max = 0, 9999999, 0
         histogram = [0]*10000
-        frecs, lengths = [], []
+        frecs, lengths, active = [], [], []
         with open(file, 'r') as f:
-            for line in f.readlines():
+            lines = f.readlines()
+            connect, is_connected = [False]*len(lines), [False]*len(lines)
+            for line in lines:
                 if line[0] == 'S':
                     line_split = line.split('\t')
-                    dnaSeq = line_split[2]
                     frecs.append(line_split[5].split(':')[2].strip())
                     unitigLength = int(line_split[3].split(':')[2].strip())
+                    totalFreq = int(line_split[4].split(':')[2].strip())
                     lengths.append(unitigLength)
+                    if float(totalFreq / unitigLength) >= float(abundanceMin):
+                        active.append(True)
+                    else:
+                        active.append(False)
                     numSeqs += 1
                     if unitigLength > len(histogram):
                         histogram = histogram + [0]*(unitigLength - len(histogram) + 1)
                     histogram[unitigLength] += 1
                     min = unitigLength if min > unitigLength else min
                     max = unitigLength if max < unitigLength else max
+                elif line[0] == 'L':
+                    infoLine = line.split('\t')
+                    ori =  int(infoLine[1])
+                    if infoLine[2] == '+':
+                        connect[ori] = True
+                    else:
+                        is_connected[ori] = True
             print('Number of sequences: ', numSeqs)
             print('Exporting histogram:')
             histogram = histogram[0:max+1]
@@ -200,9 +227,11 @@ class RepresentantGraph:
                 self._g.addVertex(i)
                 if i >= numSeqs:
                     self._g.addFreq(i, frecs[i - numSeqs])
+                    self._g.addActive(i, active[i - numSeqs] or (connect[i - numSeqs] and is_connected[i - numSeqs]))
                     self._g.addLength(i, lengths[i - numSeqs])
                 else:
                     self._g.addFreq(i, frecs[i])
+                    self._g.addActive(i, active[i] or (connect[i] and is_connected[i]))
                     self._g.addLength(i, lengths[i])
         with open(file, 'r') as f:
             for line in f.readlines():
@@ -210,9 +239,10 @@ class RepresentantGraph:
                     infoLine = line.split('\t')
                     ori, target = int(infoLine[1]) if infoLine[2] == '+' else int(infoLine[1])+numSeqs\
                         , int(infoLine[3]) if infoLine[4] == '+' else int(infoLine[3])+numSeqs
-                    if ori > 2*numSeqs:
-                        print("Ori higher: ", ori)
-                    self._g.addEdge(ori, target)
+                    if self._g.getActive(ori) and self._g.getActive(target):
+                        if ori > 2*numSeqs:
+                            print("Ori higher: ", ori)
+                        self._g.addEdge(ori, target)
 
 if __name__=='__main__':
     tmpDir, resDir = 'tmp/', 'tmpresultsDir_'

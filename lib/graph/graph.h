@@ -31,8 +31,8 @@
 #include <lemon/preflow.h>
 #include <lemon/edmonds_karp.h>
 
-//Polish parameters
-#define MIN_TIP_LENGTH 500
+//Polish parameters - MOD 500
+#define MIN_TIP_LENGTH 200
 
 // MaxPATH = 3 - MAX_BRANCHES 6
 #define INF 9999999
@@ -40,7 +40,7 @@
 #define MAX_PATH 750
 #define MAX_BRANCHES 20
 //Maximum distance for directed graph
-#define D_MAX_PATH 500
+#define D_MAX_PATH 1250
 #define D_MAX_BRANCHES 100
 #define COMPLETE 0
 #define CLIQUE_LIMIT 2
@@ -187,6 +187,11 @@ public:
     using NS = NetworkSimplex<SmartDigraph, Capacity, Weight>;
     struct UG_Node
     {
+        UG_Node():_val(INF),_id(INF),_abundance(0)
+        {
+            _paired_info = Pairedendinformation_t();
+            _map_abundance = unordered_map<OwnNode_t,size_t>();
+        }
         UG_Node(OwnNode_t val):_val(val),_abundance(0),_id(0)
         {
             _paired_info = Pairedendinformation_t();
@@ -218,6 +223,7 @@ public:
             _abundance = node._abundance;
             _paired_info = node._paired_info;
             _map_abundance = node._map_abundance;
+            _active = node._active;
             return *this;
         }
 
@@ -226,12 +232,23 @@ public:
             return (other._val == _val) && (other._paired_info == _paired_info);
         }
 
+        void assayStatus()
+        {
+            if (_val == INF)
+                _active = false;
+        }
+
+        void setVal(size_t val)
+        {
+            _val = val;
+        }
+
         void setId(size_t id)
         {
             _id = id;
         }
 
-        void setLength(size_t length)
+        void setLength(size_t length, size_t min_abundance = 0)
         {
             _length = length;
         }
@@ -655,7 +672,7 @@ private:
     vector<vector<OwnNode_t>> _g_edges, _g_in_edges;
     vector<vector<size_t>> _g_edges_reads;
     vector<unordered_set<OwnNode_t>> _reachability;
-    size_t _numedges, _num_nodes;
+    size_t _numedges, _num_nodes, _min_abundance;
     unordered_map<OwnNode_t, vector<OwnNode_t>> _map_pos;
     /*
      * Basic stats
@@ -758,6 +775,18 @@ public:
         if (i >= _g_edges.size())
             throw std::invalid_argument( "Out of bounds");
         return _g_edges[i].size();
+    }
+
+    size_t out_degree(OwnNode_t i)
+    {
+        return degree(i);
+    }
+
+    size_t in_degree(OwnNode_t i)
+    {
+        if (i >= _g_in_edges.size())
+            throw std::invalid_argument( "Out of bounds");
+        return _g_in_edges[i].size();
     }
 
     void print(const vector<string> & sequence_map, OwnNode_t parent = INF, OwnNode_t son = INF)

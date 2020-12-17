@@ -21,7 +21,7 @@
 #define MIN_LENGTH 500
 
 #define STATIC_RESERVE 1024*1024*1024
-#define HAND_THRESHOLD 15 //Previo 30
+#define HAND_THRESHOLD 20 //Previo 30
 
 using namespace std;
 using namespace sdsl;
@@ -607,16 +607,18 @@ void _traverseReads(char * file_left, char * file_right ,const FMIndex & fm, con
  * Reporting
  */
 static vector<size_t> DEFAULT_VECTOR;
-void _write_unitigs(vector<vector<size_t>> unitigs
+vector<bool> _write_unitigs(vector<vector<size_t>> unitigs
         , char * write_path, const vector<string> & sequence_map
         , size_t num_unitigs_fw,size_t kmer_size, bool force_write = false, vector<size_t> & flows = DEFAULT_VECTOR)
 {
+    vector<bool> wrote = vector<bool>(unitigs.size(), false);
     cout << "Writing unitigs: "<<unitigs.size()<<endl;
     bool write_flows = (flows.size() > 0);
     size_t num_unitigs = 0;
     ofstream outputFile(write_path);
-    for (auto unitig:unitigs)
+    for (size_t j = 0; j < unitigs.size(); ++j)
     {
+        vector<size_t> unitig = unitigs[j];
         string full_unitig = "";
         for (size_t i = 0; i < unitig.size();++i)
         {
@@ -633,6 +635,7 @@ void _write_unitigs(vector<vector<size_t>> unitigs
         //cout << endl;
         if (full_unitig.length() > MIN_LENGTH || force_write)
         {
+            wrote[j] = true;
             if (write_flows)
                 outputFile << ">"<<num_unitigs<<"-"<<flows[num_unitigs++]<<endl;
             else
@@ -643,8 +646,22 @@ void _write_unitigs(vector<vector<size_t>> unitigs
     }
     cout << "End!"<< endl;
     outputFile.close();
+    return wrote;
 }
 
+void _write_freqs(vector<size_t> unitig_flow, char * write_path, vector<bool> index)
+{
+    cout << "Writing flow: "<<unitig_flow.size()<<endl;
+    ofstream outputFile(write_path);
+    outputFile << "Freqs"<<endl;
+    for (size_t i = 0; i < unitig_flow.size(); ++i)
+    {
+        size_t flow = unitig_flow[i];
+        if (index[i])
+            outputFile << flow<<endl;
+    }
+    outputFile.close();
+}
 void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
         char * write_path, size_t kmer_size, size_t num_unitigs)
 {
@@ -670,7 +687,10 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
         flows.push_back(u.first);
     }
     char * write_path_nf = "tmp/unitigs-viaDBG-nf.fasta";
-    _write_unitigs(unitigs_nf, write_path_nf,  sequence_map, g.vertices(), kmer_size, false, flows);
+    if (unitigs_nf.size() > 0) {
+        vector<bool> index_unitigs = _write_unitigs(unitigs_nf, write_path_nf, sequence_map, g.vertices(), kmer_size, false, flows);
+        _write_freqs(flows, "tmp/flows.csv", index_unitigs);
+    }
     //vector<vector<size_t>> unitigs = apdbg.export_unitigs(sequence_map, false);
     vector<vector<size_t>> unitigs_2 = apdbg.export_unitigs_basic(sequence_map, false);
     /*cout << "Unitigs!"<<endl;

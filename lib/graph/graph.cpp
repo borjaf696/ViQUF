@@ -52,9 +52,14 @@ DBG::DBG(char * file)
     {
         if (cont++ == 0)
         {
-            istringstream iss(line);
+            vector<string> results;
+            split(line, results, ' ');
+            istringstream iss(results[0]),iss2(results[1]);
+            size_t _num_nodes;
             iss >> _num_nodes;
-            cout << "Number of nodes: "<<_num_nodes<<endl;
+            iss2 >> _min_abundance;
+            cout << "Number of nodes: "<<_num_nodes<<" Minimal depth: "<<_min_abundance<<endl;
+            _g_nodes = vector<UG_Node>(_num_nodes, UG_Node());
             _g_nodes_frequency = vector<float>(_num_nodes, 0);
             _g_edges = vector<vector<OwnNode_t>>(_num_nodes, vector<size_t>());
             _g_edges_reads = vector<vector<OwnNode_t>>(_num_nodes, vector<size_t>());
@@ -67,7 +72,9 @@ DBG::DBG(char * file)
             istringstream iss(results[0]);
             size_t node;
             iss >> node;
-            _g_nodes.push_back(UG_Node(_num_nodes, _num_nodes));
+            //_g_nodes.push_back(UG_Node(_num_nodes, node));
+            _g_nodes[node].setId(node);
+            _g_nodes[node].setVal(node);
             _num_nodes++;
             if (results.size() > 1) {
                 for (size_t i = 1; i < results.size(); ++i) {
@@ -80,7 +87,7 @@ DBG::DBG(char * file)
                         size_t length;
                         istringstream iss(results[i]);
                         iss >> length;
-                        _g_nodes[node].setLength(length);
+                        _g_nodes[node].setLength(length, _min_abundance);
                     } else {
                         size_t target;
                         istringstream iss(results[i]);
@@ -99,6 +106,8 @@ DBG::DBG(char * file)
             }
         }
     }
+    for (size_t i = 0; i < _g_nodes.size(); ++i)
+        _g_nodes[i].assayStatus();
     cout << "Sanity (number of nodes): "<<_num_nodes<<endl;
     inFile.close();
     auto end = chrono::steady_clock::now();
@@ -115,23 +124,27 @@ void DBG::polish()
         nodes_deactivated.open("graphs/nodes_deactivated.txt", std::ofstream::out | std::ofstream::app);
     }
     bool changes = true;
-    while (changes)
-    {
+    while (changes) {
         changes = false;
         /*
          * Remove isolated nodes
          */
         for (size_t i = 0; i < _g_nodes.size(); ++i) {
-            if (_g_edges[i].size() == 0 && _g_in_edges[i].size() == 0 && _g_nodes[i]._active) {
-                if (Parameters::get().debug)
-                    nodes_deactivated << "Node: " << (_g_nodes[i]._val) << " " << (_g_nodes[i]._id)<<" "<<_g_nodes[i]._length
-                                      << " No out/in neighs" << endl;
-                _g_nodes[i]._active = false;
-                changes = true;
+            if (getNodeState(i)) {
+                if (_g_edges[i].size() == 0 && _g_in_edges[i].size() == 0 && _g_nodes[i]._active) {
+                    if (Parameters::get().debug)
+                        nodes_deactivated << "Node: " << (_g_nodes[i]._val) << " " << (_g_nodes[i]._id) << " "
+                                          << _g_nodes[i]._length
+                                          << " No out/in neighs" << endl;
+                    _g_nodes[i]._active = false;
+                    changes = true;
+                }
             }
-
         }
-        if (Parameters::get().metagenomic) {
+        /*
+         * MOD -> Reactivating tips
+         */
+        //if (Parameters::get().metagenomic) {
             /*
              * Remove tips
              */
@@ -169,7 +182,7 @@ void DBG::polish()
                         changes |= check_tip(n);
             }
         }
-    }
+    //}
     if (Parameters::get().debug)
         nodes_deactivated.close();
 }
@@ -289,19 +302,20 @@ void DBG::build_process_cliques(DBG & apdbg,
         rejected_nodes<<"Rejected kmers:"<<endl;
     }
     auto starting_points = _get_starting_nodes_basic();
-    stack<OwnNode_t> nodes_process;
+    queue<OwnNode_t> nodes_process;
     vector<bool> checked = vector<bool>(_g_nodes.size(), false);
-    for (auto starting_point: starting_points)
+    for (auto starting_point: starting_points) {
+        checked[starting_point._id] = true;
         nodes_process.push(starting_point._id);
+    }
     while (!nodes_process.empty())
     {
     /*for (size_t i = 0; i < _num_nodes; ++i)
     {*/
-        OwnNode_t i = nodes_process.top();
+        OwnNode_t i = nodes_process.front();
         nodes_process.pop();
-        checked[i] = true;
         nodes_process_sf++;
-        if (_g_nodes[i]._active == false)
+        if (!_g_nodes[i]._active)
             continue;
         size_t val_node = _g_nodes[i]._val, node_id = _g_nodes[i]._id;
         if (((size_t) _g_nodes[i]._abundance) < _quantile_L)
@@ -338,8 +352,10 @@ void DBG::build_process_cliques(DBG & apdbg,
         for (size_t n_i = 0; n_i < neighbors.size(); ++n_i)
         {
             auto n = neighbors[n_i];
-            if (!checked[n])
+            if (!checked[n]) {
+                checked[n] = true;
                 nodes_process.push(n);
+            }
             if (_g_nodes[n]._active == false)
                 continue;
             auto in_parents = getNeighbor(_g_nodes[n]._id, false);
@@ -372,7 +388,7 @@ void DBG::build_process_cliques(DBG & apdbg,
                 if (getAbundance(pn) < _quantile_L || getAbundance(pn) > _quantile_H)
                 {
                     if (Parameters::get().debug)
-                        rejected_pairs << "Kmer: "<<_g_nodes[pn]._val<<" "<<((size_t)_g_nodes[pn]._abundance)<<" "
+                        rejected_pairs << "Kmer (suspicious): "<<_g_nodes[pn]._val<<" "<<((size_t)_g_nodes[pn]._abundance)<<" "
                                    <<Common::return_unitig(sequence_map, _g_nodes[pn]._val)<<" NEIGH"<<endl;
                     continue;
                 }
@@ -868,7 +884,7 @@ void DBG::build_process_cliques(DBG & apdbg,
                     clique.emplace(real_node._val);
                     if (Parameters::get().debug) {
                         paths << node<<":"<<real_node._val<<":"<<_g_nodes[real_node._val]._abundance
-                            <<":"<<real_node._id<<" "<<Common::return_unitig(sequence_map, real_node._val)<<" ";
+                            <<":"<<real_node._id<<" "<<Common::return_unitig(sequence_map, real_node._val)<<endl;
                     }
                     if (real_node._val == val_node)
                         parent_in = true;
@@ -889,7 +905,9 @@ void DBG::build_process_cliques(DBG & apdbg,
                 /*
                  * Adjust ad-hoc
                  */
-                rescore = (top_click.size() - 2 > 0)?(rescore - 1)/ (Common::sum_vector(rescoring)-1):1;
+                float sum_rescoring = Common::sum_vector(rescoring);
+                float denom = sum_rescoring-1;
+                rescore = (top_click.size() - 2 > 0)?(rescore - 1)/ denom:1;
                 //rescore = (top_click.size() - 2 > 0)?(rescore - 1)/ (top_click.size() - 1):1;
                 if (Parameters::get().debug) {
                     paths << endl;
@@ -1038,6 +1056,10 @@ void DBG::build_process_cliques(DBG & apdbg,
     cout << "% nodes checked: "<<(total_checked/(float) checked.size()*100)<<"%"<<endl;
     cout << "Number of empty pairs: "<<empty_pairs<<" out of "<<_g_nodes.size()<<endl;
     //exit(1);
+    /*
+     * Basic polishing
+     */
+    apdbg.polish();
 }
 
 size_t DBG::out_degree(OwnNode_t node_id)
@@ -1102,10 +1124,13 @@ void DBG::_get_internal_stats(const vector<string> & sequence_map)
     vector<size_t> abundances_v, paired_freqs;
     for (auto v:_g_nodes)
     {
-        float n_times = (float) sequence_map[Common::return_index(sequence_map, v._val)].length() - (float) Parameters::get().kmerSize + 1;
-        for (float i = 0; i < n_times; ++i)
-            abundances_v.push_back(v._abundance);
-        paired_freqs.push_back(v._paired_info.size());
+        if (v._active) {
+            float n_times = (float) sequence_map[Common::return_index(sequence_map, v._val)].length() -
+                            (float) Parameters::get().kmerSize + 1;
+            for (float i = 0; i < n_times; ++i)
+                abundances_v.push_back(v._abundance);
+            paired_freqs.push_back(v._paired_info.size());
+        }
     }
     /*
      * Report histogram like
@@ -1133,8 +1158,10 @@ void DBG::_get_internal_stats(const vector<string> & sequence_map)
     abundances_v.clear();
     for (auto v:_g_nodes)
     {
-        if (v._abundance >= _quantile_L) {
-            abundances_v.push_back(v._abundance);
+        if (v._active) {
+            if (v._abundance >= _quantile_L) {
+                abundances_v.push_back(v._abundance);
+            }
         }
     }
     sort (abundances_v.begin(), abundances_v.end());
@@ -1147,9 +1174,11 @@ void DBG::_get_internal_stats(const vector<string> & sequence_map)
     vector<size_t> abundances_v_post_processed;
     for (auto v:_g_nodes)
     {
-        if (v._abundance <= _quantile_H && v._abundance >= _quantile_L) {
-            abundances_v_post_processed.push_back(v._abundance);
-            mean += v._abundance;
+        if (v._active) {
+            if (v._abundance <= _quantile_H && v._abundance >= _quantile_L) {
+                abundances_v_post_processed.push_back(v._abundance);
+                mean += v._abundance;
+            }
         }
     }
     _mean_ab = mean / (float)abundances_v_post_processed.size();
@@ -1262,7 +1291,8 @@ vector<vector<OwnNode_t>> DBG::export_unitigs_basic(const vector <string> & sequ
     for (auto start_point: starting_points)
     {
         if (Parameters::get().debug)
-            extension_information << "Extending unitig from: "<<start_point._id<<":"<<start_point._val<<": "<<Common::return_unitig(sequence_map, start_point._val)<<endl;
+            extension_information << "Extending unitig from: "<<start_point._id<<":"<<start_point._val
+            <<": "<<Common::return_unitig(sequence_map, start_point._val)<<endl;
         bool behaviour = true;
         OwnNode_t n = INF;
         vector<OwnNode_t> unitig, flows;
@@ -1335,6 +1365,7 @@ void DBG::_extension_basic(vector<vector<vector<OwnNode_t>>> & unitigs, vector<v
             }
             if (length > 500)
             {
+                length = 0;
                 for (size_t i;  i < unitigs[node._id][index].size();++i)
                 {
                     auto u = unitigs[node._id][index][i];
@@ -1408,6 +1439,8 @@ vector<DBG::UG_Node> DBG::_get_potential_sinks_basic()
     vector<UG_Node> potential_sinks;
     for (auto i:_g_nodes)
     {
+        if (!i._active)
+            continue;
         if (out_degree(i._id) == 0)
             potential_sinks.push_back(i);
     }
@@ -1429,15 +1462,16 @@ vector<DBG::UG_Node> DBG::_get_starting_nodes_basic()
     vector<UG_Node> suspicious_nodes;
     for (auto i:_g_nodes)
     {
-        if (in_degree(i._id) == 0)
+        if (!i._active)
+            continue;
+        if (in_degree(i._id) == 0 && i._active)
             suspicious_nodes.push_back(i);
         /*else if (out_degree(i._id) > 1)
             for (auto n:getNeighbor(i._id))
                 suspicious_nodes.push_back(_g_nodes[n]);*/
         if (Parameters::get().debug)
         {
-            if (out_degree(i._id) == 0)
-                zero_degree << "Node: "<<_g_nodes[i._id]._val<<endl;
+                zero_degree << "Node: "<<_g_nodes[i._id]._val<<" "<<_g_edges[i._id].size()<<" "<<i._active<<endl;
         }
     }
     cout << "Starting points (basic): "<<suspicious_nodes.size()<<" Out of: "<<_g_nodes.size()<<endl;
@@ -1622,6 +1656,8 @@ vector<DBG::UG_Node> DBG::_get_starting_nodes()
     vector<UG_Node> suspicious_nodes;
     for (auto i: _g_nodes)
     {
+        if (!i._active)
+            continue;
         if (in_degree(i._id) == 0)
             suspicious_nodes.push_back(i);
         else if (out_degree(i._id) > 1) {
@@ -1660,9 +1696,9 @@ void DBG::_complete_reach_matrix()
             size_t steps, size_t &branches, unordered_set<OwnNode_t> & checked, bool show)->void{
         if (show)
             cout <<"From: "<<src<<" target: "<<target<<" Steps: "<<steps<<" Branches: "<<branches<<endl;
-        if (steps > MAX_PATH)
+        if (steps > D_MAX_PATH)
             return;
-        if (branches == MAX_BRANCHES)
+        if (branches == D_MAX_BRANCHES)
             return;
         /*if (src != target)
             this->_reachability[src].emplace(target);*/
@@ -1710,6 +1746,8 @@ void DBG::stats()
     size_t num_nodes_no_pair = 0, num_nodes_pair = 0, no_pair_no_neigh = 0, max_freq = 0;
     vector<size_t> histogram_abundances, histogram;
     for (auto v:_g_nodes) {
+        if (!v._active)
+            continue;
         histogram_abundances.push_back(v._abundance);
         histogram.push_back(_g_nodes[v._id].get_paired_information().size());
         neighs += _g_edges[v._id].size();
@@ -1761,6 +1799,8 @@ void DBG::subsane(const vector<string> & sequence_map)
      */
     for (size_t i = 0; i < _g_nodes.size(); ++i)
     {
+        if (!_g_nodes[i]._active)
+            continue;
         if (_g_edges[i].size() == 1)
         {
             size_t freq_edge = _g_edges_reads[i][0], neigh = _g_edges[i][0];
@@ -2117,6 +2157,11 @@ void UG::correct_graph_safe(OwnNode_t starting_point, std::ofstream & adjust_inf
                 }
             };
             vector<OwnNode_t> neighs_to_process = getNeighbors(n._id);
+            /*
+             * MOD!
+             */
+            /*if (neighs_to_process.size() > 1)
+                skip = true;*/
             if (_g_in_edges[n._id].size() > 1 && _g_edges[n._id].size() > 1)
             {
                 strain_scale_factor = 1;
@@ -2238,6 +2283,12 @@ void UG::correct_graph_safe(OwnNode_t starting_point, std::ofstream & adjust_inf
         adjust_information << "Adjusting flow in nodes. "<<endl;
     for (size_t i = 0; i < _g_nodes.size(); ++i) {
         Node n = _g_nodes[i];
+        /*if (in_degree(n._id) == 0 && out_degree(n._id) == 0)
+        {
+            _g_nodes[n._id]._abundance = 1;
+            adjust_information << "Isolated node turn abundance to 1"<<endl;
+            continue;
+        }*/
         /*
          * For in-between nodes
          */
@@ -2981,7 +3032,9 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
                         }
                     }
                 }
-                rescore  = ((real_path.size() - 2) > 0)?(rescore - 1)/(Common::sum_vector(rescoring)-1):1;
+                float sum_rescoring = Common::sum_vector(rescoring);
+                float denom = sum_rescoring-1;
+                rescore  = ((real_path.size() - 2) > 0)?(rescore - 1)/denom:1;
                 //rescore = ((real_path.size() - 2) > 0)?(rescore - 1)/(real_path.size() - 1):1;
                 if (show) {
                     if (RESCORING)
@@ -3068,26 +3121,34 @@ float DBG::to_max_flow_solution()
     /*
      * Remaining edges
      */
+    size_t node_max = 0, neigh_max = 0, cap = 0;
     for (size_t i = 0; i < _g_edges.size(); ++i)
     {
         for (size_t j = 0; j < _g_edges[i].size(); ++j)
         {
             Graph::Arc a = fn.addArc(id_to_fn[_g_nodes[i]._id], id_to_fn[_g_edges[i][j]]);
-            capacity[a] =(int) _g_edges_reads[i][j];
+            capacity[a] = (int) _g_edges_reads[i][j];
+            if (capacity[a] > cap){
+                node_max = _g_nodes[i]._val;
+                neigh_max = _g_nodes[_g_edges[_g_nodes[i]._id][j]]._val;
+                cap = capacity[a];
+            }
         }
     }
+    cout << "Check: "<<cap << " " <<node_max<<" "<<neigh_max<<endl;
     /*
      * Preflow
      */
-    EdmondsKarp<Graph> edmondsKarp (fn, capacity, s, t);
+    Preflow<Graph> preflow (fn, capacity, s, t);
     Graph::ArcMap<Capacity> flows(fn);
-    edmondsKarp.run();
+    preflow.run();
 
     /*
      * Flow to paths
      */
-    cout << "Maximum flow by edmonds karp: " << edmondsKarp.flowValue() << endl;
-    return edmondsKarp.flowValue();
+    cout << "Maximum flow by edmonds karp: " << preflow.flowValue() << endl;
+    cin.get();
+    return preflow.flowValue();
 }
 
 /*
@@ -3235,7 +3296,6 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::get_min_cost_flow_paths(floa
                 __flow_to_path(fn.target(selected), cur_path, flow);
                 cout << "Max flow: " << flow << endl;
                 vector <OwnNode_t> real_path;
-                float rescore = 0.0;
                 for (size_t i_p = 0; i_p < cur_path.size(); i_p++) {
                     OwnNode_t solution_node_id_source = translation_map[fn.source(cur_path[i_p])]
                     , solution_node_id_target = translation_map[fn.target(cur_path[i_p])];
