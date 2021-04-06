@@ -80,3 +80,7 @@ lo agregamos. Eso puede producir errores. CHEQUEAR y tratar de corregir las frec
 ** Cambiar a frecuencias de la conexión el flujo
 ** Homogeneizar los flujos de las regiones extremas del adbg (nah)
 ** Tratar los nodos con pe como subconjuntos (esperar que el mcp posterior reorganice como debe) siempre que uno tenga salida 0 y el otro entrada 0 y su pe sean subconjuntos
+
+
+// CORRECCIONES
+** Revisar y eliminar partes inservibles en el código, secciones que en la actualidad nunca se pasa por ellas.

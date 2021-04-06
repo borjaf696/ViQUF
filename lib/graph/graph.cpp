@@ -206,7 +206,8 @@ void DBG::polish(bool apdbg)
                 for (auto split: _split_map[node._val]){
                     if (in_degree(_g_nodes[split]._id) == 0){
                         UG_Node split_node = _g_nodes[split];
-                        split_node.export_info(nodes_deactivated);
+                        if (Parameters::get().debug)
+                            split_node.export_info(nodes_deactivated);
                         if (is_subset(split_node._paired_info,node._paired_info) || is_subset(node._paired_info,split_node._paired_info))
                         {
                             if (Parameters::get().debug)
@@ -891,7 +892,8 @@ void DBG::build_process_cliques(DBG & apdbg,
                 if (STRATEGY == 3){
                     if (accumulated_flow.size() > 0 && neighbors.size() > 1)
                     {
-                        basic_information<<endl << "Getting best combination: "<<src<<" "<<target<<" Updated Frequency: "<<freq_strain_updated<<endl;
+                        if (Parameters::get().debug)
+                            basic_information<<endl << "Getting best combination: "<<src<<" "<<target<<" Updated Frequency: "<<freq_strain_updated<<endl;
                         vector<float> neigh_offsets;
                         auto best_comb = __distribute((float)strain_freq, target, neighbors, accumulated_flow, neigh_offsets);
                         vector<float> neigh_freqs;
@@ -899,18 +901,22 @@ void DBG::build_process_cliques(DBG & apdbg,
                             neigh_freqs.push_back(f);
                         for (size_t i = 0; i < best_comb.size(); ++i)
                         {
-                            basic_information << best_comb[i] << " In_flow "<<accumulated_flow[i]
-                                <<" Best neigh: "<<neighbors[best_comb[i]]<<" with freq: "<<(float)(_g_edges_reads[target][best_comb[i]]) << ", ";
+                            if (Parameters::get().debug)
+                                basic_information << best_comb[i] << " In_flow "<<accumulated_flow[i]
+                                    <<" Best neigh: "<<neighbors[best_comb[i]]<<" with freq: "<<(float)(_g_edges_reads[target][best_comb[i]]) << ", ";
                             neigh_freqs[best_comb[i]] = ((neigh_freqs[best_comb[i]] - accumulated_flow[i] < 0)?0:neigh_freqs[best_comb[i]] - accumulated_flow[i]);
                             distributed_flow[best_comb[i]].push_back(accumulated_flow[i]);
                         }
-                        basic_information << endl;
-                        for (size_t f = 0; f < neigh_freqs.size(); ++f){
-                            basic_information << neighbors[f] << " Freq Remaining: "<<neigh_freqs[f]<<" Flow: ";
-                            for (auto flow:distributed_flow[f])
-                                basic_information << " "<<flow<<", ";
+                        if (Parameters::get().debug)
+                            basic_information << endl;
+                        if (Parameters::get().debug){
+                            for (size_t f = 0; f < neigh_freqs.size(); ++f){
+                                basic_information << neighbors[f] << " Freq Remaining: "<<neigh_freqs[f]<<" Flow: ";
+                                for (auto flow:distributed_flow[f])
+                                    basic_information << " "<<flow<<", ";
+                            }
+                            basic_information << endl;
                         }
-                        basic_information << endl;
                     } else if ( neighbors.size() > 0)
                         distributed_flow[0] = accumulated_flow;
                 }
@@ -975,7 +981,7 @@ void DBG::build_process_cliques(DBG & apdbg,
                                     {
                                         if (reaccumulated_flow[f] > 0 && (reaccumulated_flow[f] - remain_neigh_freq) < 0) {
                                             cout << "This cannot be!" << endl;
-                                            basic_information << "Check! "<<accumulated_flow[f]<<" "<<reaccumulated_flow[f]<<" "<<remain_neigh_freq<<endl;
+                                            //basic_information << "Check! "<<accumulated_flow[f]<<" "<<reaccumulated_flow[f]<<" "<<remain_neigh_freq<<endl;
                                         }
                                         if (reaccumulated_flow[f] > 0) {
                                             reaccumulated_flow[f] -= remain_neigh_freq;
@@ -1028,11 +1034,12 @@ void DBG::build_process_cliques(DBG & apdbg,
                         vector<OwnNode_t> in_parents, float original_freq)->void{
                 float in_flows = Common::sum_vector(accumulated_flow);
                 float new_freq = last_cov_edge;
-                
-                basic_information << "Source Node: "<<src<<" Target: "<<target
-                    <<" Steps: "<<steps<<" Previous Parent: "<<p_parent<<" InFlows: "<<in_flows
-                    <<" Strain Freq: "<<freq_strain_updated<<" Freq last Edge: "<<new_freq<<" Parent Strain: "<<strain_parent<<endl;
-                basic_information << "Adding the node: "<<in(union_pei, target)<<endl;
+                if (Parameters::get().debug){
+                    basic_information << "Source Node: "<<src<<" Target: "<<target
+                        <<" Steps: "<<steps<<" Previous Parent: "<<p_parent<<" InFlows: "<<in_flows
+                        <<" Strain Freq: "<<freq_strain_updated<<" Freq last Edge: "<<new_freq<<" Parent Strain: "<<strain_parent<<endl;
+                    basic_information << "Adding the node: "<<in(union_pei, target)<<endl;
+                }
                 if (p_parents_map.find(target) == p_parents_map.end())
                     p_parents_map[target] = {p_parent};
                 else
@@ -1044,7 +1051,8 @@ void DBG::build_process_cliques(DBG & apdbg,
                         new_freq = std::min(freq_strain_updated, original_freq);//(new_freq - in_flows < 0)?1:(new_freq-inflows);
                     }
                     local_graph_2.addEdge(traslation_map[src], traslation_map[target], new_freq, last_cov_edge);
-                    basic_information << "  New DAG edge from "<<src<<" to "<<target<<" with freq "<<new_freq<<endl;
+                    if (Parameters::get().debug)
+                        basic_information << "  New DAG edge from "<<src<<" to "<<target<<" with freq "<<new_freq<<endl;
                     // If I am reached as much times as in_degree I have I skip myself.    
                     /*if (checked[traslation_map[target]] >= 1)
                     {
@@ -1058,7 +1066,8 @@ void DBG::build_process_cliques(DBG & apdbg,
                 }
                 if (steps > D_MAX_PATH || branches > D_MAX_BRANCHES)
                 {
-                    basic_information << "Boundary reached!"<<endl;
+                    if (Parameters::get().debug)
+                        basic_information << "Boundary reached!"<<endl;
                     return;
                 }
                 /*
@@ -1092,7 +1101,8 @@ void DBG::build_process_cliques(DBG & apdbg,
                 {
                     // Get parent suggestion  
                     if (strain_parent != target){
-                        basic_information << "Get parent suggestion from: "<<strain_parent<<endl;
+                        if (Parameters::get().debug)
+                            basic_information << "Get parent suggestion from: "<<strain_parent<<endl;
                         auto p_e = _g_nodes[strain_parent]._paired_info;
                         for (auto local_neigh:neighbors){
                             vector<OwnNode_t> neighs_to_check(1, local_neigh);
@@ -1111,7 +1121,7 @@ void DBG::build_process_cliques(DBG & apdbg,
                             }
                         }
                     }
-                    if (neigh_assigned != INF)
+                    if (Parameters::get().debug && neigh_assigned != INF)
                         basic_information<<"We can use parent information, neigh suggested "<<neigh_assigned<<endl;
                     float unassigned_flow = freq_strain_updated;
                     if (accumulated_flow.size() > 0 && neighbors.size() > 1)
@@ -1126,12 +1136,14 @@ void DBG::build_process_cliques(DBG & apdbg,
                                 unassigned_flow -= neigh_offsets[f];
                             }
                         }
-                        basic_information << endl << "First step using paired-end information"<<endl;
+                        if (Parameters::get().debug)
+                            basic_information << endl << "First step using paired-end information"<<endl;
                         // First try to distributed parents by paired-end information
                         auto _distributed_parents = __check_pe(p_parent,in_parents, neighbors);
                         if (_distributed_parents.first)
                         {
-                            basic_information <<"There are associations"<<endl;
+                            if (Parameters::get().debug)
+                                basic_information <<"There are associations"<<endl;
                             //Getting parents distribution - univoque
                             unordered_map<OwnNode_t, vector<OwnNode_t>> parent_neighs_map;
                             for (size_t w = 0; w < _distributed_parents.second.size(); ++w)
@@ -1143,7 +1155,8 @@ void DBG::build_process_cliques(DBG & apdbg,
                                 } else*/ 
                                     for (auto index: _distributed_parents.second[w])
                                     {
-                                        basic_information << "Parent: "<<index<<" points to: "<<neighbors[w]<<", ";
+                                        if (Parameters::get().debug)
+                                            basic_information << "Parent: "<<index<<" points to: "<<neighbors[w]<<", ";
                                         if (parent_neighs_map.find(index) == parent_neighs_map.end()){
                                             parent_neighs_map[index] = vector<OwnNode_t>(1, neighbors[w]);
                                         } else {
@@ -1158,7 +1171,8 @@ void DBG::build_process_cliques(DBG & apdbg,
                                         neigh_freqs[w] -= MIN_FLOW_PATH;
                                     }
                             }
-                            basic_information << "End showing associations"<<endl;
+                            if (Parameters::get().debug)
+                                basic_information << "End showing associations"<<endl;
                             vector<bool> removed = vector<bool>(accumulated_flow.size(), false);
                             for (size_t w = 0; w < _distributed_parents.second.size(); ++w)
                             {
@@ -1174,15 +1188,17 @@ void DBG::build_process_cliques(DBG & apdbg,
                                             distributed_parents[w].push_back(index);
                                         } else {
                                             distributed_flow[w][place]+= flow_from_parent;
-                                            basic_information <<" Flow "<<distributed_flow[w][place]<<" ";
+                                            if (Parameters::get().debug)
+                                                basic_information <<" Flow "<<distributed_flow[w][place]<<" ";
                                         }
                                         neigh_freqs[w] = neigh_freqs[w] - flow_from_parent;
                                         neigh_offsets[w] += flow_from_parent;
                                         // Change flow in parent
                                         accumulated_flow[iterator_index] -= flow_from_parent;
                                         accumulated_flow[iterator_index] *= (accumulated_flow[iterator_index] < MIN_FLOW_PATH)?0:1;
-                                        basic_information << "One to one association between "<<index<<" "<<neighbors[w]<<" Offset: "<<neigh_offsets[w]
-                                            <<" Remaining flow in parent: "<<accumulated_flow[iterator_index]<<" ";
+                                        if (Parameters::get().debug)
+                                            basic_information << "One to one association between "<<index<<" "<<neighbors[w]<<" Offset: "<<neigh_offsets[w]
+                                                <<" Remaining flow in parent: "<<accumulated_flow[iterator_index]<<" ";
                                         // Remove already explained flows
                                         if (accumulated_flow[iterator_index] < MIN_FLOW_PATH)
                                             removed[iterator_index] = true;
@@ -1190,7 +1206,8 @@ void DBG::build_process_cliques(DBG & apdbg,
                                             neigh_offsets[w] += neigh_freqs[w];
                                             neigh_freqs[w] = 0;
                                         }
-                                        basic_information << "Parent removal: "<<iterator_index<<endl;
+                                        if (Parameters::get().debug)
+                                            basic_information << "Parent removal: "<<iterator_index<<endl;
                                     }
                                 }
                             }
@@ -1204,8 +1221,10 @@ void DBG::build_process_cliques(DBG & apdbg,
                             }
                         }
                         // Simplified distribution
-                        basic_information<<endl << "Getting best combination per parent unnasigned: "<<src<<" "<<target<<" Frequency to distribute: "<<unassigned_flow<<endl;
-                        basic_information<<" Accumulated flow still not distributed: "<<accumulated_flow.size()<<endl;
+                        if (Parameters::get().debug){
+                            basic_information<<endl << "Getting best combination per parent unnasigned: "<<src<<" "<<target<<" Frequency to distribute: "<<unassigned_flow<<endl;
+                            basic_information<<" Accumulated flow still not distributed: "<<accumulated_flow.size()<<endl;
+                        }
                         if (accumulated_flow.size() > 0){
                             size_t number_of_iteration = 0;
                             bool remain_flow = true;
@@ -1213,16 +1232,19 @@ void DBG::build_process_cliques(DBG & apdbg,
                                 auto best_comb = __distribute(unassigned_flow, target, neighbors, accumulated_flow, neigh_offsets);
                                 if (best_comb[0] == INF)
                                     break;
-                                for (auto c:best_comb)
-                                    basic_information << c<<", ";
-                                basic_information << endl;
+                                if (Parameters::get().debug){
+                                    for (auto c:best_comb)
+                                        basic_information << c<<", ";
+                                    basic_information << endl;
+                                }
                                 remain_flow = false;
                                 for (size_t i = 0; i < best_comb.size(); ++i)
                                 {
+                                    if (Parameters::get().debug){
                                     basic_information << best_comb[i] << " In_flow "<<accumulated_flow[i]<<" In parent: "<<in_parents[i]
                                         <<" Best neigh: "<<neighbors[best_comb[i]]<<" with freq: "<<(float)(_g_edges_reads[target][best_comb[i]]) 
                                         <<" Sanity: "<<neigh_freqs[best_comb[i]] <<" offsets: "<<neigh_offsets[best_comb[i]]
-                                        << " and already assigned "<< Common::sum_vector(distributed_flow[best_comb[i]])<<", ";
+                                        << " and already assigned "<< Common::sum_vector(distributed_flow[best_comb[i]])<<", ";}
                                     // Commuatatitivity problems (it depends on the order)
                                     float flow_inserted = 0;
                                     if ((neigh_freqs[best_comb[i]] - accumulated_flow[i]) < -MIN_FLOW_PATH)
@@ -1267,22 +1289,26 @@ void DBG::build_process_cliques(DBG & apdbg,
                                 }
                                 if (remain_flow)
                                     remain_flow = !(all_empty);
-                                basic_information << endl;
+                                if (Parameters::get().debug)
+                                    basic_information << endl;
                             }
                         }
-                        for (size_t f = 0; f < neigh_freqs.size(); ++f){
-                            basic_information << neighbors[f] << " Freq Remaining: "<<neigh_freqs[f]<<" Flow: ";
-                            for (size_t j = 0; j < distributed_flow[f].size(); ++j)
-                                basic_information << " "<<distributed_flow[f][j]<<" parent: "<<distributed_parents[f][j]<<", ";
+                        if (Parameters::get().debug){
+                            for (size_t f = 0; f < neigh_freqs.size(); ++f){
+                                basic_information << neighbors[f] << " Freq Remaining: "<<neigh_freqs[f]<<" Flow: ";
+                                for (size_t j = 0; j < distributed_flow[f].size(); ++j)
+                                    basic_information << " "<<distributed_flow[f][j]<<" parent: "<<distributed_parents[f][j]<<", ";
+                            }
+                            basic_information << endl;
                         }
-                        basic_information << endl;
                     } else if ( neighbors.size() > 0) {
                         distributed_flow[0] = accumulated_flow;
                         distributed_parents[0] = in_parents;
                     }
                 }
                 for (size_t i = 0; i < neighbors.size(); ++i) {
-                    basic_information << "Neighbor: "<<traslation_map[neighbors[i]]<<" "<<neighbors[i] <<endl;
+                    if (Parameters::get().debug)
+                        basic_information << "Neighbor: "<<traslation_map[neighbors[i]]<<" "<<neighbors[i] <<endl;
                     OwnNode_t neigh = neighbors[i];
                     vector<float> reaccumulated_flow;
                     vector<OwnNode_t> strain_parents;
@@ -1297,7 +1323,8 @@ void DBG::build_process_cliques(DBG & apdbg,
                         new_strain_freq = (new_strain_freq < MIN_FLOW_PATH)?0:new_strain_freq;
                     // Greedy as hell
                     if (new_strain_freq == 0){
-                        basic_information << "No enough flow for this strain"<<endl;
+                        if (Parameters::get().debug)
+                            basic_information << "No enough flow for this strain"<<endl;
                         continue;
                     }
                     if (neighbors.size() > 1)
@@ -1305,7 +1332,8 @@ void DBG::build_process_cliques(DBG & apdbg,
                     __dag_builder(src, neigh, steps, branches, p_parents_map,(float)_g_edges_reads[target][i], target, 
                         reaccumulated_flow,new_strain_freq,strain_parent,strain_parents, original_freq);
                 }
-                basic_information << "No more neighs, OUT!"<<target<<" "<<src<<endl;
+                if (Parameters::get().debug)
+                    basic_information << "No more neighs, OUT!"<<target<<" "<<src<<endl;
             };
             /*
              * Finding paths
@@ -1868,11 +1896,10 @@ vector<vector<OwnNode_t>> DBG::export_unitigs_basic(const vector <string> & sequ
     /*
      * Debugging mode
      */
-    std::ofstream extension_information, post_process_information;
+    std::ofstream extension_information;
     if (Parameters::get().debug)
     {
         extension_information.open("debug/extension_information.txt", std::ofstream::out);
-        post_process_information.open("debug/post_information.txt", std::ofstream::out);
         extension_information << "Getting unitigs from APDBG"<<endl;
     }
     for (auto start_point: starting_points)
@@ -1907,11 +1934,14 @@ vector<vector<OwnNode_t>> DBG::export_unitigs_basic(const vector <string> & sequ
                 }
             }
         }
-        if (Parameters::get().debug)
+        if (Parameters::get().debug){
             extension_information <<"Finishing basic extension!"<< endl;
-        extension_information.close();
+            extension_information.close();
+        }
         return final_unitigs;
     }
+    if (Parameters::get().debug)
+        extension_information.close();
     return final_unitigs;
 }
 
@@ -2844,10 +2874,12 @@ void UG::correct_graph_safe(OwnNode_t starting_point, std::ofstream & adjust_inf
                         OwnNode_t neigh = _g_edges[n._id][neighs_to_process[j]];
                         OwnNode_t last_node = _g_nodes[neigh]._id;
                         float flow = strain_scale_factor * (float) _g_freqs[n._id][neighs_to_process[j]], score = 0.0;
-                        adjust_information << "Checking: " << last_node << " flow: " << flow << endl;
+                        if (show)
+                            adjust_information << "Checking: " << last_node << " flow: " << flow << endl;
                         check_unary_path(in_flow, flow, _g_nodes[neigh]._id, last_node,
                                          strain_scale_factor, score);
-                        adjust_information << "New flow: " << flow << " Until: " << last_node << " Edge flow: "
+                        if (show)
+                            adjust_information << "New flow: " << flow << " Until: " << last_node << " Edge flow: "
                                            << neigh << " With score: " << score << endl;
                         scores[j] = score;
                         min_flows_unary[j] = abs(in_flow - flow);
@@ -2868,10 +2900,11 @@ void UG::correct_graph_safe(OwnNode_t starting_point, std::ofstream & adjust_inf
                     for (size_t j = 0; j < min_flows_unary.size(); ++j) {
                         min_flows_unary[j] = pow(sum_mins - min_flows_unary[j], 1) * scores[j];
                         sum_trads += min_flows_unary[j];
-                        adjust_information << " Val ori: " << _g_freqs[n._id][neighs_to_process[j]] << " Val trad: " << min_flows_unary[j]
-                                           << endl;
+                        if (show)
+                            adjust_information << " Val ori: " << _g_freqs[n._id][neighs_to_process[j]] << " Val trad: " << min_flows_unary[j]<< endl;
                     }
-                    adjust_information << "Sum trads: " << sum_trads << endl;
+                    if (show)
+                        adjust_information << "Sum trads: " << sum_trads << endl;
                     for (size_t j = 0; j < min_flows_unary.size(); ++j) {
                         OwnNode_t neigh = neighs_to_process[j];
                         // Removed round
@@ -2880,7 +2913,8 @@ void UG::correct_graph_safe(OwnNode_t starting_point, std::ofstream & adjust_inf
                                                            : MIN_FLOW_PATH :
                                           ((float) min_flows_unary[j] / (float) sum_trads) * (float) in_flow);
                         scale_factors[j] = ((float) new_flow / (float) _g_freqs[n._id][neigh]);
-                        adjust_information << "Previous flow: " << _g_freqs[n._id][neigh] << endl;
+                        if (show)
+                            adjust_information << "Previous flow: " << _g_freqs[n._id][neigh] << endl;
                         _g_freqs[n._id][neigh] = new_flow;
                         //change_freqs_unary_path(new_flow, _g_nodes[_g_edges[n._id][j]]._id, last_nodes[j]);
                         if (show) {
@@ -2934,7 +2968,8 @@ void UG::correct_graph_safe(OwnNode_t starting_point, std::ofstream & adjust_inf
         if (in_degree(n._id) == 0 && out_degree(n._id) == 0)
         {
             _g_nodes[n._id]._abundance = 1;
-            adjust_information << "Isolated node turn abundance to 1"<<endl;
+            if (Parameters::get().debug)
+                adjust_information << "Isolated node turn abundance to 1"<<endl;
             continue;
         }
         /*
@@ -3670,10 +3705,12 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
                          << solution_to_ids[solution_g.target(selected)] << "¿Real? "<<true_nodes[solution_to_ids[solution_g.source(selected)]]<< endl;
                 }
                 bool store = true_nodes[solution_to_ids[solution_g.source(selected)]];
-                if (!store)
-                    nw_file << "Not real path - avoiding storing the path. STORE: "<<store<<endl;
-                else
-                    nw_file << "Path from real node. STORE: "<<store<<endl;
+                if (show){
+                    if (!store)
+                        nw_file << "Not real path - avoiding storing the path. STORE: "<<store<<endl;
+                    else
+                        nw_file << "Path from real node. STORE: "<<store<<endl;
+                }
                 cur_path.push_back(selected);
                 __flow_to_path(solution_g.target(selected), cur_path, anchor_point, flow);
                 if (show)
@@ -4054,7 +4091,8 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
     id_to_fn[ids] = t;translation_map[t] = ids++;
     id_to_fn[ids] = s_star;translation_map[s_star] = ids++;
     id_to_fn[ids] = t_star;translation_map[t_star] = ids;
-    nw_file << "Source global "<<(ids - 3)<<" Target global "<<(ids - 2)<<" Source star "<<(ids - 1)<<" Target star "<<(ids)<<endl;
+    if (Parameters::get().debug)
+        nw_file << "Source global "<<(ids - 3)<<" Target global "<<(ids - 2)<<" Source star "<<(ids - 1)<<" Target star "<<(ids)<<endl;
     /*
      * Solution network containers
      */
@@ -4100,7 +4138,8 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
     for (size_t i = 0; i < _g_edges.size(); ++i)
     {
         vector<Graph::Arc> arcs;
-        nw_file << "Node: "<<i<<endl;
+        if (Parameters::get().debug)
+            nw_file << "Node: "<<i<<endl;
         float length_unitig = (float) Common::return_unitig(sequence_map, _g_nodes[i]._val).size();
         /*
          * Forward edge
@@ -4120,14 +4159,16 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
             if (out_degree(_g_edges[i][j]) == 0)
                 weight = 2/_g_edges_reads[i][j];
             weights[a] = weight;
-            nw_file << "neigh: "<<_g_edges[i][j]<<" Flow: "<<capacity[a]<<" Weight: "<<weights[a]<<endl;
             /*
              * Supply map
              */
             supplyMap[src] += capacity[a];
             supplyMap[tg] -= capacity[a];
-            nw_file << "Supply: "<<i<<" "<<supplyMap[src]<<endl;
-            nw_file << "Supply: "<<_g_edges[i][j]<<" "<<supplyMap[tg]<<endl;
+            if (Parameters::get().debug){
+                nw_file << "neigh: "<<_g_edges[i][j]<<" Flow: "<<capacity[a]<<" Weight: "<<weights[a]<<endl;
+                nw_file << "Supply: "<<i<<" "<<supplyMap[src]<<endl;
+                nw_file << "Supply: "<<_g_edges[i][j]<<" "<<supplyMap[tg]<<endl;
+            }
         }
         /*
          * Backward edge
@@ -4241,31 +4282,36 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
                         __flow_to_path(fn.target(selected),cur_path, it_max_flow);
                     };
             ns.flowMap(flows);
-            nw_file << "cost=" << ns.totalCost() << endl;
-            nw_file << "Filling flow: "<<endl;
+            if (Parameters::get().debug){
+                nw_file << "cost=" << ns.totalCost() << endl;
+                nw_file << "Filling flow: "<<endl;
+            }
             for (Graph::ArcIt a(fn); a != INVALID; ++a)
             {
                     available_flow[a] = (trueArc[a])?capacity[a]:0;
             }
-            /*
-             * Just for testing purposes
-             */
-            nw_file << "Checking flow conservative rule"<<endl;
-            for (Graph::NodeIt i(fn); i != INVALID; ++i)
+            if (Parameters::get().debug)
             {
-                nw_file << "Node: "<<translation_map[i]<<endl;
-                nw_file << "Required flow: "<<supplyMap[i]<<endl;
-                for (Graph::OutArcIt edge(fn, i); edge != INVALID; ++edge)
+                /*
+                * Just for debug purposes
+                */
+                nw_file << "Checking flow conservative rule"<<endl;
+                for (Graph::NodeIt i(fn); i != INVALID; ++i)
                 {
-                    nw_file << "Outflow node: "<<flows[edge]<<endl;
-                    nw_file << "Capacity: "<<capacity[edge]<<endl;
-                    nw_file << "Source: "<<translation_map[fn.source(edge)]<<" Target: "<<translation_map[fn.target(edge)]<<endl;
-                }
-                for (Graph::InArcIt edge(fn, i); edge != INVALID; ++edge)
-                {
-                    nw_file << "Inflow node: "<<flows[edge]<<endl;
-                    nw_file << "Capacity: "<<capacity[edge] <<endl;
-                    nw_file << "Source: "<<translation_map[fn.source(edge)]<<" Target: "<<translation_map[fn.target(edge)]<<endl;
+                    nw_file << "Node: "<<translation_map[i]<<endl;
+                    nw_file << "Required flow: "<<supplyMap[i]<<endl;
+                    for (Graph::OutArcIt edge(fn, i); edge != INVALID; ++edge)
+                    {
+                        nw_file << "Outflow node: "<<flows[edge]<<endl;
+                        nw_file << "Capacity: "<<capacity[edge]<<endl;
+                        nw_file << "Source: "<<translation_map[fn.source(edge)]<<" Target: "<<translation_map[fn.target(edge)]<<endl;
+                    }
+                    for (Graph::InArcIt edge(fn, i); edge != INVALID; ++edge)
+                    {
+                        nw_file << "Inflow node: "<<flows[edge]<<endl;
+                        nw_file << "Capacity: "<<capacity[edge] <<endl;
+                        nw_file << "Source: "<<translation_map[fn.source(edge)]<<" Target: "<<translation_map[fn.target(edge)]<<endl;
+                    }
                 }
             }
             for (Graph::ArcIt a(fn); a != INVALID; ++a)
@@ -4317,7 +4363,8 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
                 vector <Graph::Arc> cur_path;
                 Graph::Arc selected;
                 float flow = -INF;
-                nw_file << "Getting source with highest flow: "<<endl;
+                if (Parameters::get().debug)
+                    nw_file << "Getting source with highest flow: "<<endl;
                 for (auto s: sources_set)
                 {
                     Graph::Node source_node = id_to_fn[s];
@@ -4327,7 +4374,6 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
                         vector <OwnNode_t> real_path(1,s);
                         result_paths.push({0,real_path});
                         sources_added.emplace(s);
-                        nw_file << "Source added: "<<s<<endl;
                     }
                     for (Graph::OutArcIt a(fn, source_node); a != INVALID; ++a) {
                         if (!trueArc[a])
@@ -4340,19 +4386,22 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
                     }
                 }
                 if (flow == 0 || flow == -INF) {
-                    nw_file << "No more path available!"<<endl;
+                    if (Parameters::get().debug)
+                        nw_file << "No more paths available!"<<endl;
                     break;
                 }
-                nw_file << "And the winner is... " << flow << " From: " << translation_map[fn.source(selected)]<<" "
-                     << translation_map[fn.target(selected)]<< endl;
+                if (Parameters::get().debug)
+                    nw_file << "And the winner is... " << flow << " From: " << translation_map[fn.source(selected)]<<" "<< translation_map[fn.target(selected)]<< endl;
                 cur_path.push_back(selected);
                 __flow_to_path(fn.target(selected), cur_path, flow);
-                nw_file << "Max flow: " << flow << endl;
+                if (Parameters::get().debug)
+                    nw_file << "Max flow: " << flow << endl;
                 vector <OwnNode_t> real_path;
                 for (size_t i_p = 0; i_p < cur_path.size(); i_p++) {
                     OwnNode_t solution_node_id_source = translation_map[fn.source(cur_path[i_p])]
                     , solution_node_id_target = translation_map[fn.target(cur_path[i_p])];
-                    nw_file << "From: " << solution_node_id_source << " to "<< solution_node_id_target<<" Cur flow: "<<available_flow[cur_path[i_p]] << endl;
+                    if (Parameters::get().debug)
+                        nw_file << "From: " << solution_node_id_source << " to "<< solution_node_id_target<<" Cur flow: "<<available_flow[cur_path[i_p]] << endl;
                     if (!traversed_node[solution_node_id_source])
                     {
                         total--;
@@ -4365,7 +4414,8 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
                     }
                     if (available_flow[cur_path[i_p]] - flow < 0)
                     {
-                        nw_file << "Something goes wrong!" << available_flow[cur_path[i_p]]<<" "<<flow<<endl;
+                        if (Parameters::get().debug)
+                            nw_file << "Something goes wrong!" << available_flow[cur_path[i_p]]<<" "<<flow<<endl;
                         exit(1);
                     }
                     available_flow[cur_path[i_p]] = (available_flow[cur_path[i_p]] - flow < 0) ? 0 :
@@ -4380,7 +4430,8 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
                     result_paths.push(pair<size_t, vector < OwnNode_t >>((flow == INF)?_g_nodes[translation_map[fn.source(cur_path[0])]]._abundance:flow, real_path));
                 }
             }
-            nw_file << "Results path: "<<result_paths.size()<<endl;
+            if (Parameters::get().debug)
+                nw_file << "Results path: "<<result_paths.size()<<endl;
             return result_paths;
             break;
         case NS::UNBOUNDED:
