@@ -1,25 +1,44 @@
 # ViQUF
 
-New algorithm for full viral haplotype reconstruction and abundance estimation. It is an alternative approach from the original methodology viaDBG:
+New algorithm for full viral haplotype reconstruction and abundance estimation. It is an alternative approach for the first developed approach viaDBG which was based entirely on **de Bruijn** graphs. ViQUF is based on flow networks which allows us to do a proper and successful estimation of the strains frequencies. 
 
-* Building assembly graph
+The overall workflow is as follows:
+
+* Building assembly graph (BCALM)
 * Polishing the assembly graph by:
 	* Classifying edges as weak and strong, and removing the weak ones called as filigree edges.
-	* Removing isolated nodes
-	* Removing short tips
-* Paired-end association and polishing removing both:
-	* Extremely low and high frequency pairs.	
+	* Removing isolated nodes.
+	* Removing short tips.
+* Paired-end association.
+* Paired-end polishing removing as many wrong associations as possible.	
 * Core algorithm:
 	* For every pair of adjacent nodes A -> B, we built a DAG from their paired-end information.
-	* DAG is transform into a flow network and the min-cost flow problem is solved.
-	* The flow is translated into paths via maximal allowed flow. 
+	* DAG is translated into a flow network and a min-cost flow is solved.
+	* The flow is translated into paths via a "greedy" path heuristic. 
 * Final strains are build following two rules:
-	* Standard contig traversion
-	* Maximum flow (Edmund Karp) + Min-cost flow problem - it allows to estimate relative and absolute abundance for every contig reported.
+	* Standard contig traversion (deprecated)
+	* Min-cost flow over the Approximate Paired de Bruijn Graph built from the core algorithm.
+
+# Depedencies
+
+* Python 3.*
+* C++17
+* SDSL
+* BCALM
+* quast 4.3 or quast 5.0.1 to evaluate the results
+* Compile: make clean && make
 
 ## Command line standard:
 
-screen -L -Logfile BCAMLTest.log python test/testBcalm.py ../Datasets/Helsinki2.0/10-strain-HCV-20000x 121 10 ngs
-screen -L -Logfile execution3.log ./bin/output.out tmp/unitigs.FM placements tmp 121 tmp/unitigs.graph tmp/unitigs.unitigs.fa tmp/unitigs-viadbg.fa tmp/Ownlatest/append.fasta --debug
+The file **execution-script** contains an example about how to execute the code.
+
+* python test/testBcalm.py $1 $2 10 ngs $3 $4 --no-meta
+	* $1 - folder with NGS reads
+	* $2 - kmer size
+	* $3 - --correct/--no-correct to perform correction or not respectively
+	* $4 - --join, has pear been executed? If so --join otherwise --no-join
+* ./bin/output.out tmp/unitigs.FM placements tmp 121 tmp/unitigs.graph tmp/unitigs.unitigs.fa tmp/unitigs-viadbg.fa tmp/Ownlatest/append.fasta $5 $6 --virus
+	* $5 - complete set of reads (it is not mandatory but recommended)
+	* $6 - --debug or not.
 
 

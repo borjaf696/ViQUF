@@ -5,4 +5,4 @@
 # $5 - complete set of reads (it is not mandatory but recommended)
 # $6 --debug or not
 python test/testBcalm.py $1 $2 10 ngs $3 $4 --no-meta
-screen -L -Logfile execution3-15ZIKV.log /usr/bin/time -v ./bin/output.out tmp/unitigs.FM placements tmp 121 tmp/unitigs.graph tmp/unitigs.unitigs.fa tmp/unitigs-viadbg.fa tmp/Ownlatest/append.fasta $5 $6 --virus
+./bin/output.out tmp/unitigs.FM placements tmp 121 tmp/unitigs.graph tmp/unitigs.unitigs.fa tmp/unitigs-viadbg.fa tmp/Ownlatest/append.fasta $5 $6 --virus
