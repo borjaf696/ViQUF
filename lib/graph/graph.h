@@ -33,15 +33,17 @@
 
 //Polish parameters - MOD 500
 #define MIN_TIP_LENGTH 200
+#define MIN_LENGTH_PATH 500
 
 // MaxPATH = 3 - MAX_BRANCHES 6
-#define INF 9999999
+#define INF 9999999999
 #define NO_NEIGH 9999999
 #define MAX_PATH 750
 #define MAX_BRANCHES 20
 //Maximum distance for directed graph
-#define D_MAX_PATH 1250
-#define D_MAX_BRANCHES 100
+#define D_MAX_PATH 500
+// Care here, maximum number without finding an anchor point
+#define D_MAX_BRANCHES 5
 #define COMPLETE 0
 #define CLIQUE_LIMIT 2
 #define SIZE_RELATION 0.2
@@ -65,8 +67,9 @@
 #define RESCORING 1
 #define CORRECT_GRAPH 1
 #define CORRECT_RATIO 0.5
-#define STRATEGY 2
+#define STRATEGY 3
 #define FLOW_LIMIT_RATIO 0.2
+#define RATIO_CONFIDENCE_DISTRIBUTE 0.1
 /*
  * Filtering pairs quantiles
  */
@@ -156,6 +159,15 @@ template<typename T>
 bool in(unordered_set<T> s1, T el)
 {
     return (s1.find(el)!=s1.end());
+}
+
+template<typename T>
+bool in(unordered_set<T> s1, vector<T> els)
+{
+    for(auto el:els)
+        if (in(s1, el))
+            return true;
+    return false; 
 }
 
 /*
@@ -290,6 +302,14 @@ public:
             return _map_abundance[node];
         }
 
+        void export_info(std::ofstream & outfile)
+        {
+           outfile << "Val: "<<_val<<" Id: "<<_id<<" Abundance: "<<_abundance<<endl;
+            for (auto i: _paired_info)
+                outfile << " "<<i;
+            outfile << endl; 
+        }
+
         void print_info()
         {
             cout << "Val: "<<_val<<" Id: "<<_id<<" Abundance: "<<_abundance<<endl;
@@ -409,7 +429,7 @@ public:
     DBG():_num_nodes(0),_numedges(0){}
     DBG(char *);
     DBG(const DBG&);
-    void polish();
+    void polish(bool = false);
     /*
      * Methods modify graph
      */
@@ -439,79 +459,50 @@ public:
             _g_edges.push_back(vector<OwnNode_t>());
             _g_edges_reads.push_back(vector<size_t>());
             _g_in_edges.push_back(vector<OwnNode_t>());
-            if (show)
-                cout << node._val<<" "<<_g_nodes[_num_nodes-1]._val<<" "<<node._id<<" "<<_g_nodes[_num_nodes-1]._id<<endl;
+            if (show){
+                cout << node._val<<" "<<_g_nodes[_num_nodes-1]._val<<" "<<node._id
+                    <<" "<<_g_nodes[_num_nodes-1]._id<<" "<<_g_nodes[_num_nodes-1]._length<<" "<<_g_nodes[_num_nodes-1]._abundance<<endl;
+                exit(1);
+            }
         }
     }
 
-    pair<OwnNode_t,OwnNode_t> addNode(UG_Node node_parent, UG_Node node_son, float freq_edge = 0.0, bool show = false)
+    pair<OwnNode_t,OwnNode_t> addNode(UG_Node node_parent, UG_Node node_son, float freq_edge = 0.0, bool show = false, bool empty_solution = false)
     {
         vector<OwnNode_t> index_1 = _get_posible_pos(node_parent._val),index_2 = _get_posible_pos(node_son._val);
         OwnNode_t i_1 = NO_NEIGH, i_2 = NO_NEIGH;
         /*
          * Check index positions
          */
-        for (auto i: index_1)
-        {
-            if (_g_nodes[i] == node_parent)
+        if (!empty_solution){
+            for (auto i: index_1)
             {
-                i_1 = _g_nodes[i]._id;
-                break;
-            }
-            /*
-             * Revisar - subconjuntos no siempre son iguales los cliques
-             */
-            /*if (!(_g_nodes[i] == node_parent) && (is_subset(_g_nodes[i]._paired_info, node_parent._paired_info)
-                || is_subset(node_parent._paired_info, _g_nodes[i]._paired_info)))
-            {
-                Pairedendinformation_t insert =  node_parent._paired_info, study = _g_nodes[i]._paired_info;
-                double ratio1 = ((insert.size()*100)/(insert.size() + study.size())),
-                    ratio2 = ((study.size()*100)/(insert.size()+study.size()));
-                if (ratio1 >= RATIO_SIMILARITY || ratio2 >= RATIO_SIMILARITY) {
-                    _g_nodes[i]._paired_info = (insert.size() > study.size())?insert:study;
+                if (_g_nodes[i] == node_parent)
+                {
                     i_1 = _g_nodes[i]._id;
                     break;
                 }
-            }*/
-        }
-        for (auto i: index_2)
-        {
-            if (_g_nodes[i] == node_son)
-            {
-                i_2 = _g_nodes[i]._id;
-                break;
             }
-            /*if (!(_g_nodes[i] == node_son) && (is_subset(_g_nodes[i]._paired_info, node_son._paired_info)
-                                                  || is_subset(node_son._paired_info, _g_nodes[i]._paired_info)))
+            for (auto i: index_2)
             {
-                Pairedendinformation_t insert =  node_son._paired_info, study = _g_nodes[i]._paired_info;
-                double ratio1 = ((insert.size()*100)/(insert.size() + study.size())),
-                        ratio2 = ((study.size()*100)/(insert.size()+study.size()));
-                if (ratio1 >= RATIO_SIMILARITY || ratio2 >= RATIO_SIMILARITY) {
-                    _g_nodes[i]._paired_info = (insert.size() > study.size())?insert:study;
+                if (_g_nodes[i] == node_son)
+                {
                     i_2 = _g_nodes[i]._id;
                     break;
                 }
-            }*/
-        }
-        /*if (node_parent._val == 1011 || node_son._val == 1011)
-        {
-            cout <<" Caso 1011: "<<endl;
-            cout << "Valor indice: "<<i_1<<endl;
-            if (i_1 != NO_NEIGH)
-            {
-                cout <<"Indice encontrado: "<<i_1<<endl;
-            } else {
-                cout << "Indice usado: "<<_num_nodes<<endl;
+                
             }
-        }*/
-        if (i_1 == NO_NEIGH)
             index_1.clear();
-        if (i_2 == NO_NEIGH)
             index_2.clear();
+            if (i_1 != NO_NEIGH)
+                index_1.push_back(i_1);
+            if (i_2 != NO_NEIGH)
+                index_2.push_back(i_2);
+        }
         if (index_1.size() == 0)
         {
             i_1 = _num_nodes;
+            index_1.push_back(i_1);
             _map_pos[node_parent._val].push_back(i_1);
             node_parent.setId(_num_nodes++);
             _g_nodes.push_back(node_parent);
@@ -523,6 +514,7 @@ public:
         if (index_2.size() == 0)
         {
             i_2 = _num_nodes;
+            index_2.push_back(i_2);
             _map_pos[node_son._val].push_back(i_2);
             node_son.setId(_num_nodes++);
             _g_nodes.push_back(node_son);
@@ -530,18 +522,24 @@ public:
             _g_edges_reads.push_back(vector<size_t>());
             _g_in_edges.push_back(vector<OwnNode_t>());
         }
-        if (find(_g_edges[i_1].begin(), _g_edges[i_1].end(), i_2) == _g_edges[i_1].end())
+        for (auto i_1: index_1)
         {
-            if (show)
+            for (auto i_2:index_2)
             {
-                cout << "Added edge: "<<i_1<<"-"<<i_2<<endl;
+                if (find(_g_edges[i_1].begin(), _g_edges[i_1].end(), i_2) == _g_edges[i_1].end())
+                {
+                    if (show)
+                    {
+                        cout << "Added edge: "<<i_1<<"-"<<i_2<<endl;
+                    }
+                    _g_edges[i_1].push_back(i_2);
+                    _g_edges_reads[i_1].push_back(freq_edge);
+                    _g_in_edges[i_2].push_back(i_1);
+                } else if (show)
+                {
+                    cout << "Edge already inserted - skipped -> "<<i_1<<"-"<<i_2<<endl;
+                }
             }
-            _g_edges[i_1].push_back(i_2);
-            _g_edges_reads[i_1].push_back(freq_edge);
-            _g_in_edges[i_2].push_back(i_1);
-        } else if (show)
-        {
-            cout << "Edge already inserted - skipped -> "<<i_1<<"-"<<i_2<<endl;
         }
         return {i_1, i_2};
         //cout <<" Adding edge from "<<i_1<<"/"<<_g_nodes[i_1]._val<<" to "<<i_2<<"/"<<_g_nodes[i_2]._val<<endl;
@@ -640,7 +638,21 @@ public:
      * Solve Flow-problems
      */
     float to_max_flow_solution();
-    priority_queue<pair<size_t,vector<OwnNode_t>>> get_min_cost_flow_paths(float);
+    priority_queue<pair<size_t,vector<OwnNode_t>>> get_min_cost_flow_paths(float = -1);
+    priority_queue<pair<size_t,vector<OwnNode_t>>> solve_std_mcp(const vector<string> & );
+    void mcp_example();
+    /*
+     * Split_map methods
+     */
+    void initialize_split_map()
+    {
+        for (auto node:_g_nodes)
+            _split_map[node._val] = unordered_set<OwnNode_t>();
+    }
+    void add_to_split_map(OwnNode_t key , OwnNode_t val)
+    {
+        _split_map[key].emplace(val);
+    }
 private:
     void _get_internal_stats(const vector<string>&);
     size_t _find_edge(OwnNode_t, OwnNode_t, bool = true);
@@ -674,6 +686,10 @@ private:
     vector<unordered_set<OwnNode_t>> _reachability;
     size_t _numedges, _num_nodes, _min_abundance;
     unordered_map<OwnNode_t, vector<OwnNode_t>> _map_pos;
+    /*
+     * Split mapping
+     */
+    unordered_map<OwnNode_t, unordered_set<OwnNode_t>> _split_map;
     /*
      * Basic stats
      */
@@ -795,8 +811,7 @@ public:
         cout << "Length l:"<<l<<endl;
         for (auto n:_g_nodes)
         {
-            size_t id = (n._val >= l)?n._val - l:n._val;
-            string seq = (n._val >= l)?Sequence(sequence_map[id].c_str()).getRevcomp():sequence_map[id];
+            string seq = Common::return_unitig(sequence_map,n._val);
             cout << "Id: "<<n._id<<" Val: "<<n._val<<" Abundance: "<<n._abundance<<endl<<seq<<" "<<endl<<" Neighs: ";
             for (size_t i = 0; i <_g_edges[n._id].size(); ++i)
                 cout << " "<<_g_edges[n._id][i]<<":"<<_g_freqs[n._id][i];
@@ -808,8 +823,7 @@ public:
             std::ofstream outfile(file_name, std::ofstream::binary);
             for (auto n:_g_nodes)
             {
-                size_t id = (n._val >= l)?n._val - l:n._val;
-                string seq = (n._val >= l)?Sequence(sequence_map[id].c_str()).getRevcomp():sequence_map[id];
+                string seq = Common::return_unitig(sequence_map,n._val);
                 outfile << " Val: "<<n._val<<":"<<n._abundance<<endl<<seq<<" "<<endl<<" Neighs: ";
                 for (size_t i = 0; i <_g_edges[n._id].size(); ++i)
                     outfile << " "<<_g_nodes[_g_edges[n._id][i]]._val<<":"<<_g_freqs[n._id][i];
@@ -818,8 +832,7 @@ public:
             std::ofstream outfile_2(file_name_2, std::ofstream::binary);
             for (auto n:_g_nodes)
             {
-                size_t id = (n._val >= l)?n._val - l:n._val;
-                string seq = (n._val >= l)?Sequence(sequence_map[id].c_str()).getRevcomp():sequence_map[id];
+                string seq = Common::return_unitig(sequence_map,n._val);
                 outfile_2 << " Val: "<<n._val<<":"<<n._abundance<<endl<<" Neighs: ";
                 for (size_t i = 0; i <_g_edges[n._id].size(); ++i)
                     outfile_2 << " "<<_g_nodes[_g_edges[n._id][i]]._val<<":"<<_g_freqs[n._id][i];
@@ -856,14 +869,15 @@ public:
     void post_process_cycles(vector<size_t>&, size_t&);
     void readjust_flow(float,float&, float&);
     void correct_graph(std::ofstream &);
-    void correct_graph_safe(OwnNode_t ,std::ofstream &, vector<bool>&);
+    void correct_graph_safe(OwnNode_t ,std::ofstream &, vector<bool>&, DBG&);
 private:
     vector<Node> _g_nodes;
     vector<vector<OwnNode_t >> _g_edges, _g_in_edges;
     vector<vector<size_t>> _g_freqs;
     size_t _num_edges, _num_vertex;
-    //{Index, edge}
     vector<pair<size_t,OwnNode_t>> _edges_leftovers;
+    // Pointed by to path reconstruct heuristic
+    unordered_map<OwnNode_t,unordered_set<OwnNode_t>> _paired_with;
     bool _directed;
 };
 #endif //GATB_TRIAL_GRAPH_H

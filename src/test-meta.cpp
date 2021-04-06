@@ -187,6 +187,9 @@ bit_vector _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & 
     number_of_reads = ceil(1.1*number_of_reads);
     cout << "Number of reads: "<<number_of_reads<<endl;
     cout << "Number of k-mers under processment: "<<kmer_map.size()<<endl;
+    /*
+     * MOD! - bitvector de 1's originalmente 0's
+     */
     bit_vector reads_with_transition(number_of_reads,0);
     size_t n_read = 0, cuenta = 0;
     /*
@@ -308,6 +311,10 @@ void _traverseReadsHash(char * file_left, char * file_right
     cout << "Left: "<<file_left<<endl;
     cout << "Right: "<<file_right<<endl;
     size_t rate = ceil(float(kmerSize)*float(FIRSTLASTLENGTH)/100);
+    /*
+     * Testing
+     */
+    rate = 1;
     cout << "Accepted distances: "<<rate<<endl;
     auto start = chrono::steady_clock::now();
     /*
@@ -462,7 +469,7 @@ void _traverseReadsHash(char * file_left, char * file_right
                             preCounters[key] = 1;preCounters[rc_key] = 1;
                             pairs_set_1.emplace(key);pairs_set_1.emplace(rc_key);
                         }
-                    }
+                    } 
                 }
             }
             l1--;l2--;
@@ -480,10 +487,23 @@ void _traverseReadsHash(char * file_left, char * file_right
         std::ofstream outfile("graphs/pair_end_info.txt", std::ofstream::binary);
         for (size_t i = 0; i < STATIC_RESERVE;++i)
         {
-            if (preCounters[i] > 0)
+            if (preCounters[i] >= 1)
             {
                 size_t node_left = (i >> 15), node_right = (i & 32767);
-                outfile << "Left: "<<node_left<<" - "<<node_right<<" Freq: "<<((int)preCounters[i])<<endl;
+                //auto neighbors = g.getNeighbor(node_left);
+                    outfile <<" Left: "<<node_left<<" - "<<node_right<<" Freq: "<<((int)preCounters[i])<<endl;
+                /*for (auto n: neighbors)
+                {
+                    size_t key = (n << 15) | node_right;
+                    if ((preCounters[key] > 0) & (preCounters[i] < HAND_THRESHOLD)){
+                        int new_count = ((int)preCounters[i]) + ((int)preCounters[key]);
+                        outfile << "Left: "<<node_left<<" - "<<node_right<<" Freq: "<<((int)preCounters[i])<<" + "<<((int)preCounters[key])<<" = "<<new_count<<endl;
+                        if (new_count > HAND_THRESHOLD)
+                            g.addPair(node_left, node_right, true, true);
+                    } else {
+                        outfile <<"Neigh: "<<n<<" Left: "<<node_left<<" - "<<node_right<<" Freq: "<<((int)preCounters[i])<<endl;
+                    }
+                }*/
                 histogram_file<<node_left<<","<<node_right<<","<<((int)preCounters[i])<<endl;
             }
         }
@@ -515,7 +535,7 @@ void _traverseReadsHash(char * file_left, char * file_right
 void _traverseReads(char * file_left, char * file_right ,const FMIndex & fm, const RankOnes & rank,
         const SelectOnes & select, size_t kmerSize, DBG & g)
 {
-    cout << "Traversing reads!"<<endl;
+    cout << "Paired-end traversal "<<file_left<<" "<<file_right<<endl;
     auto start = chrono::steady_clock::now();
     /*
      * Paired_end input banks
@@ -608,7 +628,7 @@ void _traverseReads(char * file_left, char * file_right ,const FMIndex & fm, con
  */
 static vector<size_t> DEFAULT_VECTOR;
 vector<bool> _write_unitigs(vector<vector<size_t>> unitigs
-        , char * write_path, const vector<string> & sequence_map
+        , string write_path, const vector<string> & sequence_map
         , size_t num_unitigs_fw,size_t kmer_size, bool force_write = false, vector<size_t> & flows = DEFAULT_VECTOR)
 {
     vector<bool> wrote = vector<bool>(unitigs.size(), false);
@@ -637,7 +657,7 @@ vector<bool> _write_unitigs(vector<vector<size_t>> unitigs
         {
             wrote[j] = true;
             if (write_flows)
-                outputFile << ">"<<num_unitigs<<"-"<<flows[num_unitigs++]<<endl;
+                outputFile << ">"<<num_unitigs++<<"-"<<full_unitig.length()<<"-"<<flows[j]<<endl;
             else
                 outputFile << ">"<<num_unitigs++<<endl;
             outputFile << full_unitig;
@@ -649,7 +669,7 @@ vector<bool> _write_unitigs(vector<vector<size_t>> unitigs
     return wrote;
 }
 
-void _write_freqs(vector<size_t> unitig_flow, char * write_path, vector<bool> index)
+void _write_freqs(vector<size_t> unitig_flow, string write_path, vector<bool> index)
 {
     cout << "Writing flow: "<<unitig_flow.size()<<endl;
     ofstream outputFile(write_path);
@@ -676,6 +696,7 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
     /*
      * Max flow
      */
+    /*cout << "MCP via max flow"<<endl;
     float pre_flow = apdbg.to_max_flow_solution();
     priority_queue<pair<size_t,vector<OwnNode_t>>> unitigs_nf_with_freqs = apdbg.get_min_cost_flow_paths(pre_flow);
     vector<vector<OwnNode_t>> unitigs_nf;
@@ -686,13 +707,38 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
         unitigs_nf.push_back(u.second);
         flows.push_back(u.first);
     }
-    char * write_path_nf = "tmp/unitigs-viaDBG-nf.fasta";
+    string str_obj_nf("tmp/unitigs-viaDBG-nf.fasta");
+    char * write_path_nf = &str_obj_nf[0];
     if (unitigs_nf.size() > 0) {
         vector<bool> index_unitigs = _write_unitigs(unitigs_nf, write_path_nf, sequence_map, g.vertices(), kmer_size, false, flows);
         _write_freqs(flows, "tmp/flows.csv", index_unitigs);
+    }*/
+    /*
+     * Testing - standard approach
+     */
+    cout << "MCP standard approach"<<endl;
+    priority_queue<pair<size_t,vector<OwnNode_t>>> unitigs_nf_with_freqs_2 = apdbg.solve_std_mcp(sequence_map);
+    cout << "End std_mcp"<<endl;
+    vector<vector<OwnNode_t>> unitigs_nf_2;
+    vector<size_t> flows_2;
+    while(!unitigs_nf_with_freqs_2.empty()) {
+        pair<size_t,vector<OwnNode_t>> u = unitigs_nf_with_freqs_2.top();
+        unitigs_nf_with_freqs_2.pop();
+        unitigs_nf_2.push_back(u.second);
+        flows_2.push_back(u.first);
+        cout << "Flow: "<<u.first<<endl;
+        for (auto u:u.second)
+            cout << " " << u <<" -> ";
+        cout << endl;
+    }
+    string str_obj_nf_2("tmp/unitigs-viaDBG-nf-std.fasta");
+    char * write_path_nf_2 = &str_obj_nf_2[0];
+    if (unitigs_nf_2.size() > 0) {
+        vector<bool> index_unitigs = _write_unitigs(unitigs_nf_2, write_path_nf_2, sequence_map, g.vertices(), kmer_size, false, flows_2);
+        _write_freqs(flows_2, "tmp/flows_2.csv", index_unitigs);
     }
     //vector<vector<size_t>> unitigs = apdbg.export_unitigs(sequence_map, false);
-    vector<vector<size_t>> unitigs_2 = apdbg.export_unitigs_basic(sequence_map, false);
+    //vector<vector<size_t>> unitigs_2 = apdbg.export_unitigs_basic(sequence_map, false);
     /*cout << "Unitigs!"<<endl;
     for (auto u: unitigs) {
         for (auto u2: u)
@@ -700,8 +746,9 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
         cout << endl;
     }*/
     //_write_unitigs(unitigs, write_path, sequence_map, g.vertices(), kmer_size);
-    char * write_path_extra = "tmp/unitigs-viaDBG-greedy.fasta";
-    _write_unitigs(unitigs_2, write_path_extra,  sequence_map, g.vertices(), kmer_size);
+    string str_obj("tmp/unitigs-viaDBG-greedy.fasta");
+    char * write_path_extra = &str_obj[0];
+    //_write_unitigs(unitigs_2, write_path_extra,  sequence_map, g.vertices(), kmer_size);
 }
 
 DBG _buildGraph(char * file)
@@ -713,12 +760,26 @@ DBG _buildGraph(char * file)
 
 int main (int argc, char* argv[])
 {
-    cout << "Params: unitigFile, dolarsFile (placement),tmp_file, kmerSize, graphFile, unitigsFasta, unitigsfile "<<endl;
+    cout << "Params: unitigFile, dolarsFile (placement),tmp_file, kmerSize, graphFile, unitigsFasta, unitigsfile, appendfile, paired_end (optional) "<<argc<<endl;
     char * unitigs = argv[1], * dolars = argv[2]
             , * graphFile = argv[5], * unitigsFa = argv[6], * unitigs_file = argv[7], * append_file = argv[8];
+    string paired_end = "";
+    if (argc == 12)
+    {
+        paired_end = string(argv[9]);
+    }
     //Ajustar para pear
-    string file_1 =  string(argv[3]) + "/0.fasta", file_2 = string(argv[3]) + "/1.fasta";
-    char * file1 = file_1.c_str(), * file2 = file_2.c_str();
+    string file_1 = string(""), file_2 = string("");
+    if (paired_end == ""){
+        file_1 =  string(argv[3]) + "/0.fasta";
+        file_2 = string(argv[3]) + "/1.fasta";
+    } else {
+        auto files = OwnSystem::get_directories(paired_end);
+        file_1 = files[0];
+        file_2 = files[1];
+    }
+    cout << "File Left: "<<file_1<<" File Right: "<<file_2<<endl;
+    char * file1 = &file_1[0], * file2 = &file_2[0];
     // Parameters read
     Parameters::get().check_cmd_line(argc, argv);
     Parameters::get().print_info();

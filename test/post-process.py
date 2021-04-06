@@ -33,9 +33,9 @@ def __split_fastas(file, labels):
         BioUtils.export_fasta_from_dict(val, 'tmp/unitigs_'+str(key)+'.fasta')
 
 if __name__ == '__main__':
-    df = pd.read_csv('tmp/flows.csv')
+    df = pd.read_csv('tmp/flows_2.csv')
     # Perform clustering (no number of clusters defined)
     labels = __process_clustering(df, MeanShift, columns = ['Freqs'], kwds = {'cluster_all':True})
     # Split fastas
-    fasta_files = 'tmp/unitigs-viaDBG-nf.fasta'
+    fasta_files = 'tmp/unitigs-viaDBG-nf-std.fasta'
     __split_fastas(fasta_files, labels)

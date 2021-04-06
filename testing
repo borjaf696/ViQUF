@@ -1,0 +1,3 @@
+Params: unitigFile, dolarsFile (placement),tmp_file, kmerSize, graphFile, unitigsFasta, unitigsfile 
+Build DBG graph from file
+Unable to open file

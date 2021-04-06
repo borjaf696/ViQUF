@@ -4,7 +4,8 @@
 
 #ifndef VIADBG_TRIAL_EXTRA_H
 #define VIADBG_TRIAL_EXTRA_H
-
+#include <filesystem>
+#include <sys/stat.h>
 // For viral data it must be higher (100) for meta try lower
 #define MARGIN 100
 /*
@@ -74,7 +75,7 @@ struct Parameters
         cout << "Greedy extension: "<<greedy<<endl;
         cout << "########################################################"<<endl;
     }
-    string t_data = "virus";
+    string t_data = "virus", paired_end_reads = "";
     double missmatches;
     size_t genome_size = 0;
     double num_unique_kmers = 0;
@@ -153,7 +154,8 @@ struct Common {
     {
         bool reverse = place >= sequence_map.size();
         string seq = sequence_map.at(reverse?place - sequence_map.size():place);
-        seq = ((reverse)?Sequence(seq.c_str()).getRevcomp():seq);
+        char * seq_str = &(seq.c_str())[0];
+        seq = ((reverse)?Sequence(seq_str).getRevcomp():seq);
         cout<<" "<<seq<<" ";
     }
 
@@ -161,7 +163,8 @@ struct Common {
     {
         bool reverse = (place >= sequence_map.size());
         string seq = sequence_map.at(reverse?place - sequence_map.size():place);
-        return ((reverse)?Sequence(seq.c_str()).getRevcomp():seq);
+        char * seq_str = &(seq.c_str())[0];
+        return ((reverse)?Sequence(seq_str).getRevcomp():seq);
     }
 
     static size_t return_index(const vector<string> & sequence_map, size_t place)
@@ -182,7 +185,24 @@ struct Common {
         return (float) total;
     }
 };
-
-struct System {
+#include <sys/types.h>
+#include <dirent.h>
+struct OwnSystem {
+    static std::vector<string> get_directories(std::string path, std::string extension = "fastq")
+    {
+        DIR* dirp = opendir(path.c_str());
+        struct dirent * dp;
+        std::vector<string> files;
+        while ((dp = readdir(dirp)) != NULL) {
+            char * p_1 = strtok(dp->d_name,".");
+            char * p_2 = strtok(NULL,".");
+            if (p_2 != NULL)
+                if(strcmp(p_2,extension.c_str())==0)
+                    files.push_back(path+dp->d_name+".fastq");
+        }
+        closedir(dirp);
+        std::sort(files.begin(), files.end());
+        return files;
+    }
 };
 #endif //VIADBG_TRIAL_EXTRA_H

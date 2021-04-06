@@ -47,3 +47,36 @@ Moving into full representative representation - Donete via bcalm
             if reach(n,n2):
                 remove(A,n)
     * En resumen si un nodo hijo es alcanzable a través del resto de hijos entonces eliminamos dicha arista.
+
+### Redo Reajuste
+ ** Usar versión de expresiones overleaf, la idea es distribuir de manera que produzcamos el mínimo error en la distribución de los valores. (done)
+ ** Usar la información de emparejados para tratar de simplificar la asociación de padres en las secciones divergentes.
+ ** Hay que cuidar el hecho de que se puede llegar varias veces a un nodo X - Si se llega varias veces solo se recorren de nuevo las hebras que tienen remain_flow 
+ (igual debería ser máxima esto y solo recorrer las hebras que tienen remain_flow > 0). Implementar y ver si efectivamente es esto. (done)
+ ** Añadir un diccionario por nodo estudiado (aquel en el que se haya hecho una distribución de in_flows) que guarde el in_flow de los padres asignados y los padres asignados. 
+ ¿Nos quedamos con la última asignación? Probemos a ver que tal (done) - Corrección: si alcance múltiple guardamos de que padre venimos y eliminamos al padre de dicho nodo.(done)
+ ** Usar al padre de la hebra para tratar de apoyar nuestras decisiones.
+ ** TESTEAR
+ ** IMPORTANTE
+ ** Nos movemos a una aproximación greedy:
+    ** Si el padre de la hebra (strain_parent) apunta a uno de los vecinos pero no al resto entonces mandamos el flujo directamente por ahí - offset[neigh] = strain_freq_update
+    ** Sino hay asignación de paired_end - aproximación regular via distribución
+    ** Si hay información de paired_end:
+        ** Si la asignación parent-neigh es única y |freq(neigh) - freq(in_parent)| < error entonces mandamos todo el flujo del padre por dicha hebra
+        ** Si la asignación parent-neigh no es única o si siendo única la frecuencia del padre es muy superior a la del hijo entonces asumimos que el padre divide y por tanto las 
+        asignaciones no serán exactas, es decir, que igual que existe exceso en un lado existirá deficit en otro. Para solventar este problema replanteamos el problema de la 
+        distribución vía las frecuencias restantes todavía no asignadas.
+** Cambio añadido de versiones completas en lugar de versiones vacías de los nodos.
+** Nueva modificación - cuando exista el caso de que un in_parent apunta a algun vecino automáticamente asignar MIN_PATH_FLOW de ese padre a ese hijo. Recordar que luego habría que 
+incrementar ese flujo en caso de que hubiese otra asignación.
+// TESTING
+** Intentar la aproximación full greedy
+** CORREGIR MCP GENERAL - Que pasa con las cadenas únicas.
+// añadido
+** No nos basamos solo en los vecinos directos sino que usamos también los vecinos de los vecinos para hacer el emparejamiento de las pe. Pero ojo si el in_degree de estos es > 1, no
+lo agregamos. Eso puede producir errores. CHEQUEAR y tratar de corregir las frecuencias.
+** El padre de la hebra es el primer vecino de esa hebra bajo estudio.
+** Eliminamos los round - necesitamos precisión
+** Cambiar a frecuencias de la conexión el flujo
+** Homogeneizar los flujos de las regiones extremas del adbg (nah)
+** Tratar los nodos con pe como subconjuntos (esperar que el mcp posterior reorganice como debe) siempre que uno tenga salida 0 y el otro entrada 0 y su pe sean subconjuntos

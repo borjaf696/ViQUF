@@ -1,0 +1,9 @@
+{
+    "git.ignoreLimitWarning": true,
+    "python.pythonPath": "/opt/anaconda2/bin/python",
+    "files.associations": {
+        "ostream": "cpp",
+        "iostream": "cpp",
+        "complex": "cpp"
+    }
+}
