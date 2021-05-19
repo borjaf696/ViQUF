@@ -21,8 +21,8 @@ class UtilsReport:
 
 
 class RepresentantGraph:
-    exeBcalm = '/home/bfreire/Gatb-trial/third-party/bcalm/build/bcalm'
-    exeGFA = '/home/bfreire/Gatb-trial/third-party/bcalm/scripts/convertToGFA.py'
+    exeBcalm = 'third-party/bcalm/build/bcalm'
+    exeGFA = 'third-party/bcalm/scripts/convertToGFA.py'
     outFile, _tail, _graphExt= 'tmp/unitigs', '.unitigs.fa', '.graph'
     seqs = []
     class GraphStruct:
