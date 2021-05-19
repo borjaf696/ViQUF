@@ -21,7 +21,9 @@ The overall workflow is as follows:
 
 # Depedencies
 
-* Python 3.*
+* Python 3.* - we encourage you to build a conda environment and still all dependencies via conda: conda create -n ViQUF-env python=3.6
+	* Biopython, altair, gurobi 
+	* matplotlib, scipy, numpy
 * C++17
 * SDSL
 * BCALM
@@ -32,7 +34,7 @@ The overall workflow is as follows:
 
 The file **execution-script** contains an example about how to execute the code.
 
-* python test/testBcalm.py $1 $2 10 ngs $3 $4 --no-meta
+* python scripts/testBcalm.py $1 $2 10 ngs $3 $4 --no-meta
 	* $1 - folder with NGS reads
 	* $2 - kmer size
 	* $3 - --correct/--no-correct to perform correction or not respectively
@@ -40,5 +42,6 @@ The file **execution-script** contains an example about how to execute the code.
 * ./bin/output.out tmp/unitigs.FM placements tmp 121 tmp/unitigs.graph tmp/unitigs.unitigs.fa tmp/unitigs-viadbg.fa tmp/Ownlatest/append.fasta $5 $6 --virus
 	* $5 - complete set of reads (it is not mandatory but recommended)
 	* $6 - --debug or not.
+* python scripts/post-process.py
 
 

@@ -218,14 +218,13 @@ class StatsReport:
 from Bio import SearchIO, SeqIO
 from Bio.Seq import Seq
 from Bio.File import as_handle
-from Bio.Alphabet import generic_dna
 from Bio.SearchIO._model import QueryResult, Hit, HSP, HSPFragment
 from Bio.SearchIO._utils import get_processor
 
 class BioUtils:
     @staticmethod
     def reverse_complement(chain):
-        return str(Seq(chain, generic_dna).reverse_complement())
+        return str(Seq(chain).reverse_complement())
     @staticmethod
     def identicalClustering(file, program = 'mmseqs', args = ['tmp/clusters','tmp/', '-c','1.0','--min-seq-id',
                                                               '1.0','-v','3','--seq-id-mode','0','--cov-mode','1','--remove-tmp-files'

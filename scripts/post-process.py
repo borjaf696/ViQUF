@@ -7,10 +7,7 @@ import pandas as pd
 import progressbar
 from shutil import copyfile
 from Bio.Seq import Seq
-from Bio.Alphabet import generic_dna
 from utils.utils import *
-from kneed import KneeLocator
-from sklearn.cluster import MeanShift
 import numpy as np
 import math
 from mip import *

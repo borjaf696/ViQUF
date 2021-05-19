@@ -7,9 +7,7 @@ import pandas as pd
 import progressbar
 from shutil import copyfile
 from Bio.Seq import Seq
-from Bio.Alphabet import generic_dna
 from utils.utils import *
-from kneed import KneeLocator
 import numpy as np
 import math
 
@@ -105,7 +103,6 @@ class RepresentantGraph:
                     return i
         def __kernel_estimation(data_x, data_y):
             import matplotlib.pyplot as plt
-            import seaborn as sns; sns.set()
             from datetime import datetime
             SCALE = 0.25 if meta else 1.0
             data_y_tmp = data_y[np.where(data_y < 1000)]

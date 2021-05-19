@@ -13,6 +13,7 @@ quast_results
 results
 stats/*
 test
+scripts/output*
 tmp/*
 tmpresults*
 abundance*
