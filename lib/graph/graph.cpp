@@ -226,7 +226,7 @@ void DBG::polish(bool apdbg)
             }
         }
     }
-    // Lets ensure capacities are on point - REVISAR (Ahora mismo usamos mínimo y corregimos todo)
+    // Lets ensure capacities are on point - REVISAR (Ahora mismo usamos mediana y corregimos todo)
     if (apdbg)
     {
         if (Parameters::get().debug)
@@ -286,7 +286,10 @@ void DBG::polish(bool apdbg)
                     cur_unitig.push_back(node);*/
                 max_capacity = INF;
             } else {
-                freqs.push_back(_g_edges_reads[node][0]);
+                for (size_t i = 0; i < _g_nodes[node]._length; ++i){
+                    freqs.push_back(_g_edges_reads[node][0]);
+                }
+                //freqs.push_back(_g_edges_reads[node][0]);
                 max_capacity = (max_capacity > _g_edges_reads[node][0])?_g_edges_reads[node][0]:max_capacity;
             }
             if (!checked[node]){
@@ -296,8 +299,10 @@ void DBG::polish(bool apdbg)
             }
         }
     }
-    if (Parameters::get().debug)
+    if (Parameters::get().debug){
+        nodes_deactivated << "End nodes deactivated!"<<endl;
         nodes_deactivated.close();
+    }
 }
 
 size_t DBG::edges()
@@ -1526,18 +1531,12 @@ void DBG::build_process_cliques(DBG & apdbg,
                         paths << "Standard situation" << endl;
                         paths << "Both have to provide something to the path: (parent) "<<in_a<<" (son) "<<in_b<<endl;
                     }
-                        /*if ((in_a && in_b) && ((isa || isb) & !(isa && isb)) && !content) {
-                            offset_erase.push_back(true);
-                        } else if (in_a && in_b)
-                            offset_erase.push_back(false);
-                        offset_node.push_back(isa);
-                        offset_neigh.push_back(isb);*/
                     if (!in_a or !in_b)
                         offset_erase.push_back(true);
                     else
                         offset_erase.push_back(false);
                 }
-                UG_Node parent_l(_g_nodes[i]._val, p_info_a), son_l(_g_nodes[n]._val, p_info_b);
+                UG_Node parent_l(_g_nodes[i]._val, p_info_a, _g_nodes[i]._length), son_l(_g_nodes[n]._val, p_info_b,_g_nodes[n]._length);
                 potential_nodes.push_back({((RESCORING)?((float)top_click_pair.first)/max((float)0.01,rescore):top_click_pair.first)
                                            ,pair<UG_Node, UG_Node>(parent_l, son_l)});
                 if (Parameters::get().debug) {
@@ -1546,44 +1545,7 @@ void DBG::build_process_cliques(DBG & apdbg,
                     paths << son_l.to_String();
                 }
             }
-            /*
-             * Procesar las paired-end y eliminar los subconjuntos
-             */
-            /*for (size_t index_s = 0; index_s < potential_nodes.size(); ++index_s)
-            {
-                UG_Node p = potential_nodes[index_s].second.first, h = potential_nodes[index_s].second.second;
-                for (size_t index_s_2 = 0; index_s_2 < potential_nodes.size(); ++index_s_2)
-                {
-                    UG_Node p_2 = potential_nodes[index_s_2].second.first, h_2 = potential_nodes[index_s_2].second.second;
-                    if (p_2 == p && h_2 == h)
-                        continue;
-                    bool parent_ss = is_subset(p._paired_info,p_2._paired_info), parent_ss_2 = is_subset(p_2._paired_info, p._paired_info)
-                            ,son_ss = is_subset(h._paired_info, h_2._paired_info), son_ss_2 = is_subset(h_2._paired_info,h._paired_info);
-                    if (parent_ss && !parent_ss_2 && (in_parents.size() > 1))
-                        offset_erase[index_s] = true;
-                    if (parent_ss_2 && !parent_ss && (in_parents.size() > 1))
-                        offset_erase[index_s_2] = true;
-                    if (son_ss && !son_ss_2 && (neighbors.size() > 1))
-                        offset_erase[index_s] = true;
-                    if (son_ss_2 && !son_ss && (neighbors.size() > 1))
-                        offset_erase[index_s_2] = true;
-                }
-            }*/
             if (offset_erase.size() > 1) {
-                /*size_t num_removes = 0;
-                for (size_t it = 0; it < offset_erase.size(); ++it) {
-                    if (offset_erase[it]) {
-                        Pairedendinformation_t p1 = (offset_node[it]) ? potential_nodes[it].second._paired_info :
-                                                    potential_nodes[it].first._paired_info;
-                        for (size_t it_2 = 1; it_2 < potential_nodes.size(); ++it_2) {
-                            Pairedendinformation_t p2 = (offset_node[it]) ? potential_nodes[it_2].second._paired_info :
-                                                        potential_nodes[it_2].first._paired_info;
-                            if (p1 != p2) {
-                                offset_erase[it] = is_subset(p1, p2);
-                            }
-                        }
-                    }
-                }*/
                 size_t num_removes = 0;
                 if (Parameters::get().debug)
                     paths << "Removing cliques: ";
@@ -2537,6 +2499,15 @@ void DBG::print(OwnNode_t parent, OwnNode_t son, string file_name)
         }
         outfile << "End print" << endl;
         outfile.close();
+        // Basic information for MLP
+        std::ofstream outfileBasic(file_name+".basic", std::ofstream::binary);
+        for (auto v:_g_nodes)
+        {
+            if (!v._active)
+                continue;
+            outfileBasic<<v._id<<"-"<<v._val<<"-"<<((float)((float)(v._length - Parameters::get().kmerSize)/(float)Parameters::get().kmerSize))<<"-"<<v._abundance<<endl;
+        }
+        outfileBasic.close();
     }
     if (parent == 1)
     {
@@ -3322,6 +3293,8 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
     float flow_from_target = 0;
     for (auto n:_g_nodes)
     {
+        if (n._abundance == 1 & _g_edges[n._id].size() == 0 & _g_in_edges[n._id].size() == 0)
+            continue;
         if (_g_in_edges[n._id].size() == 0) {
             sources_set.emplace(n._id);
         }
@@ -3330,10 +3303,15 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
             targets_set.emplace(n._id);
         }
     }
+    // Remove isolated nodes
     for (auto n:_g_nodes)
     {
         if (show)
             nw_file << "Node: "<<n._id<<" Val: "<<n._val<<endl;
+        if (n._abundance == 1 & _g_edges[n._id].size() == 0 & _g_in_edges[n._id].size() == 0){
+            map_in_out.push_back({});
+            continue;
+        }
         /*
          * Initialize flow map
          */
@@ -3388,6 +3366,10 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
     {
         if (show)
             nw_file << "Node: "<<_g_nodes[i]._id<<endl;
+        if (_g_nodes[i]._abundance == 1 & _g_edges[_g_nodes[i]._id].size() == 0 & _g_in_edges[_g_nodes[i]._id].size() == 0){
+            map_in_out.push_back({});
+            continue;
+        }
         pair<Graph::Node, Graph::Node> n_1 = map_in_out[i];
         for (size_t j = 0; j < _g_edges[i].size(); ++j)
         {
@@ -3667,6 +3649,7 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
             unordered_set<OwnNode_t> sources_added;
             vector<bool> traversed_node(_g_nodes.size(),false);
             size_t total = _g_nodes.size();
+            priority_queue<pair<size_t,vector<OwnNode_t>>> results_path_tmp;
             while(true)
             {
                 vector <Graph::Arc> cur_path;
@@ -3678,14 +3661,6 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
                 {
                     Graph::Node source_node = offset_to_solution[s];
                     Graph::OutArcIt a(solution_g, source_node);
-                    /*if (a == INVALID && sources_added.find(s) == sources_added.end())
-                    {
-                        vector <OwnNode_t> real_path(1,s);
-                        result_paths.push({0,real_path});
-                        sources_added.emplace(s);
-                        if (show)
-                            nw_file << "Source added: "<<s<<endl;
-                    }*/
                     if (show)
                         nw_file << " Source: "<<s<<endl;
                     for (Graph::OutArcIt a(solution_g, source_node); a != INVALID; ++a) {
@@ -3760,16 +3735,24 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
                         nw_file << "New path with " << flow << " flow." << endl;
                 }
                 flow = (RESCORING)?ceil(flow*rescore):flow;
-                if (flow >= MIN_FLOW_PATH)
-                {
-                    result_paths.push(pair<size_t, vector < OwnNode_t >>(flow, real_path));
-                }
+                results_path_tmp.push(pair<size_t, vector < OwnNode_t >>(flow, real_path));
                 /*if (total == 0)
                 {
                     if (show)
                         nw_file << "Set of paths is already a path cover - Finishing path traversal"<<endl;
                     break;
                 }*/
+            }
+            bool force_insertion = (results_path_tmp.size() == 1);
+            while (!results_path_tmp.empty())
+            {
+                auto path = results_path_tmp.top();
+                results_path_tmp.pop();
+                size_t flow = path.first;
+                if (flow >= MIN_FLOW_PATH || force_insertion)
+                {
+                    result_paths.push(pair<size_t, vector < OwnNode_t >>(flow, path.second));
+                }
             }
             if (show)
                 nw_file << "End MCF"<<endl;
@@ -4146,6 +4129,8 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
          */
         for (size_t j = 0; j < _g_edges[i].size(); ++j)
         {
+            if (Parameters::get().debug)
+                nw_file << "Neigh: "<<_g_edges[i][j] << " with freq: "<<_g_edges_reads[i][j]<<endl;
             Graph::Node src = id_to_fn[_g_nodes[i]._id], tg = id_to_fn[_g_edges[i][j]];
             Graph::Arc a = fn.addArc(src, tg);
             trueArc[a] = true;arcs.push_back(a);lowerMap[a] = 0;
@@ -4245,8 +4230,8 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
             for (auto s: sources_nodes)
                 sources_set.emplace(s._id);
             std::function<void(Graph::Node, vector<Graph::Arc>&, float&)> __flow_to_path =
-                    [this,& __flow_to_path,& fn, &available_flow,
-                     &targets_set,&translation_map, &trueArc]
+                    [this,& __flow_to_path,& fn, &available_flow,&ids,
+                     &targets_set,&translation_map, &trueArc, &nw_file]
                             (Graph::Node src,vector<Graph::Arc> & cur_path, float & it_max_flow)->void {
                         float max_flow = -INF, min_diff = INF;
                         Graph::Arc selected;
@@ -4269,7 +4254,8 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
                                 selected = a;
                             }
                         }
-                        if (max_flow == -INF)
+                        nw_file << "Selected: "<<translation_map[fn.target(selected)]<<endl;
+                        if (max_flow == -INF || translation_map[fn.target(selected)] > (ids - 3))
                             return;
                         if (max_flow != 0)
                             it_max_flow = (max_flow < it_max_flow) ? max_flow : it_max_flow;
@@ -4278,6 +4264,8 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
                             cur_path.push_back(selected);
                             return;
                         }
+                        if (std::find(cur_path.begin(), cur_path.end(), selected) != cur_path.end())
+                            return;
                         cur_path.push_back(selected);
                         __flow_to_path(fn.target(selected),cur_path, it_max_flow);
                     };

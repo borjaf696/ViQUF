@@ -61,6 +61,10 @@
  */
 #define SECURE_OFFSET 0.000001
 #define MAX_GRANULARITY_ALLOWED 10
+/*
+ * Boundaries 25 - 4 strains - 10 - 8 strains; Real - 100
+ * Maximum deviation - 25 - 4 strains - 10 - 8 Boundaries; 100 Real
+ */
 #define MIN_FLOW_PATH 100
 #define MAXIMUM_PATH_DEVIATION 100
 #define READJUST 0
@@ -223,6 +227,11 @@ public:
         }
 
         UG_Node(OwnNode_t val, Pairedendinformation_t paired_info):_val(val),_id(0),_abundance(0),_paired_info(paired_info)
+        {
+            _map_abundance = unordered_map<OwnNode_t,size_t>();
+        }
+
+        UG_Node(OwnNode_t val, Pairedendinformation_t paired_info, size_t length):_val(val),_id(0),_length(length),_abundance(0),_paired_info(paired_info)
         {
             _map_abundance = unordered_map<OwnNode_t,size_t>();
         }

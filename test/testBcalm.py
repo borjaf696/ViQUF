@@ -107,7 +107,7 @@ class RepresentantGraph:
             import matplotlib.pyplot as plt
             import seaborn as sns; sns.set()
             from datetime import datetime
-            SCALE = 1.0
+            SCALE = 0.25 if meta else 1.0
             data_y_tmp = data_y[np.where(data_y < 1000)]
             data_x_tmp = data_x[0:max(data_y_tmp)]
             plt.hist(data_y, bins=125, density=True)
@@ -169,8 +169,8 @@ class RepresentantGraph:
         min_freq_estimator_kde = __kernel_estimation(np.array(X), np.array(Y))
         print('Recommended abundance (kernel estimator): ',min_freq_estimator_kde)
         min_freq_estimator = min(min_freq_estimator_kde, min_freq_estimator) if meta else max(min_freq_estimator_kde, min_freq_estimator)
-        #print('Handmade abundance: ', 128)
-        #min_freq_estimator = 128
+        #print('Handmade abundance: ', 16)
+        #min_freq_estimator = 16
         print('Recommended abundance: ', min_freq_estimator)
         return min_freq_estimator
 

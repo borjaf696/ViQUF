@@ -104,6 +104,20 @@ struct Op_Container{
             out.emplace(s);
         return out;
     }
+    template<typename T>
+    static bool in(const vector<T> & v1, T el)
+    {
+        return (std::find(v1.begin(), v1.end(), el) != v1.end());
+    }
+    template<typename T>
+    static pair<size_t, float> percentage_of_similarity(const vector<T> & v1, const vector<T> & v2)
+    {
+        float matches = 0;
+        for (auto v: v1)
+            matches += (Op_Container::in(v2, v))?1:0;
+        // 1 if v2 in v1 0 otherwise
+        return (v1.size() > v2.size())?std::pair<size_t,float>(1, matches/v2.size()):std::pair<size_t, float>(0, matches/v1.size());
+    }
 };
 /*
  * Maths operations
@@ -144,7 +158,8 @@ struct Maths{
     template<typename T>
     static T median(vector<T> container)
     {
-        return container[ceil((float) container.size() * 0.5)-1];
+        size_t place = ceil((float) container.size() * 0.5)-1;
+        return (container[place] == 0)?(container[place + 1]):container[place];
     }
 };
 

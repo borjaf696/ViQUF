@@ -21,7 +21,7 @@
 #define MIN_LENGTH 500
 
 #define STATIC_RESERVE 1024*1024*1024
-#define HAND_THRESHOLD 20 //Previo 30
+#define HAND_THRESHOLD 20 //Previo 20 - normal - Boundaries - 4 strains 5 - 8 strains 2
 
 using namespace std;
 using namespace sdsl;
@@ -286,7 +286,7 @@ bit_vector _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & 
         kmer_map.erase(k);
     cout <<"**After polishing**\nNumber of active nodes: "<<g.vertices(true)<<"\nNumber of active edges: "<<g.edges()<<"\nNumber of kmers: "<<kmer_map.size()<<endl;
     rank_support_v5<> rb(&reads_with_transition);
-    cout << "Number ofreads with transitions: "<<rb(number_of_reads)<<" out of "<<((float)rb(n_read) / (float)n_read)*100<<"%"<<endl;
+    cout << "Number of reads with transitions: "<<rb(n_read)<<" out of "<<((float)rb(n_read) / (float)n_read)*100<<"%"<<endl;
     return reads_with_transition;
 }
 /*
@@ -334,13 +334,15 @@ void _traverseReadsHash(char * file_left, char * file_right
     auto preCounters = new std::atomic<unsigned char>[STATIC_RESERVE];
     for (size_t i = 0; i < STATIC_RESERVE; ++i)
         preCounters[i] = 0;
-
     cout << "Paired-end traversion"<<endl;
     for (progress_iter.first(); !progress_iter.isDone(); progress_iter.next())
     {
         size_t number_of_kmer = 0;
         if (Parameters::get().t_data == "virus")
         {
+            /*
+             * There is no real association when pear has been run
+             */
             if (!reads_with_transitions[cnr++])
                 continue;
         }
@@ -509,6 +511,7 @@ void _traverseReadsHash(char * file_left, char * file_right
         }
         histogram_file.close();
         outfile.close();
+        pe_information.close();
     }
     cout << "Number of reads traversed: "<<number_reads<<endl;
     auto end = chrono::steady_clock::now();
@@ -635,15 +638,16 @@ vector<bool> _write_unitigs(vector<vector<size_t>> unitigs
     cout << "Writing unitigs: "<<unitigs.size()<<endl;
     bool write_flows = (flows.size() > 0);
     size_t num_unitigs = 0;
-    ofstream outputFile(write_path);
+    ofstream outputFile(write_path), uniseqFile(write_path+".unitigs");
     for (size_t j = 0; j < unitigs.size(); ++j)
     {
         vector<size_t> unitig = unitigs[j];
-        string full_unitig = "";
+        string full_unitig = "", unitigs_seq = "";
         for (size_t i = 0; i < unitig.size();++i)
         {
             //cout << unitig[i]<<" ";
             size_t u = unitig[i];
+            unitigs_seq += to_string(u)+"-";
             string seq = Common::return_unitig(sequence_map, u);
             if (i != 0)
                 seq = seq.substr(kmer_size-1, seq.size() - kmer_size + 1);
@@ -656,16 +660,20 @@ vector<bool> _write_unitigs(vector<vector<size_t>> unitigs
         if (full_unitig.length() > MIN_LENGTH || force_write)
         {
             wrote[j] = true;
+            uniseqFile << ">"<<num_unitigs << endl;
+            uniseqFile << unitigs_seq << endl;
             if (write_flows)
                 outputFile << ">"<<num_unitigs++<<"-"<<full_unitig.length()<<"-"<<flows[j]<<endl;
             else
                 outputFile << ">"<<num_unitigs++<<endl;
             outputFile << full_unitig;
             outputFile << endl;
+
         }
     }
     cout << "End!"<< endl;
     outputFile.close();
+    uniseqFile.close();
     return wrote;
 }
 
@@ -689,32 +697,37 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
     DBG apdbg;
     g.build_process_cliques(apdbg, sequence_map, num_unitigs);
     if (Parameters::get().debug) {
-        cout << "Exporting ADPBG" << endl;
+        cout << "Exporting APdBG" << endl;
         apdbg.print(1, INF);
         apdbg.export_to_gfa(sequence_map);
     }
     /*
-     * Max flow
+     * Post-process unitigs
      */
-    /*cout << "MCP via max flow"<<endl;
-    float pre_flow = apdbg.to_max_flow_solution();
-    priority_queue<pair<size_t,vector<OwnNode_t>>> unitigs_nf_with_freqs = apdbg.get_min_cost_flow_paths(pre_flow);
-    vector<vector<OwnNode_t>> unitigs_nf;
-    vector<size_t> flows;
-    while(!unitigs_nf_with_freqs.empty()) {
-        pair<size_t,vector<OwnNode_t>> u = unitigs_nf_with_freqs.top();
-        unitigs_nf_with_freqs.pop();
-        unitigs_nf.push_back(u.second);
-        flows.push_back(u.first);
-    }
-    string str_obj_nf("tmp/unitigs-viaDBG-nf.fasta");
-    char * write_path_nf = &str_obj_nf[0];
-    if (unitigs_nf.size() > 0) {
-        vector<bool> index_unitigs = _write_unitigs(unitigs_nf, write_path_nf, sequence_map, g.vertices(), kmer_size, false, flows);
-        _write_freqs(flows, "tmp/flows.csv", index_unitigs);
-    }*/
+     std::function<std::pair<int, int>(const vector<vector<OwnNode_t>>&,const vector<OwnNode_t>&)> 
+                __find_similarity = [sequence_map](const vector<vector<OwnNode_t>> unitigs, vector<OwnNode_t> unitig)->std::pair<int,int>{
+                    for (size_t i = 0; i < unitigs.size(); ++i)
+                    {
+                        auto u = unitigs[i];
+                        std::pair<size_t, float> pair_percentage = Op_Container::percentage_of_similarity(u, unitig);
+                        // Set contigs similarity at 80% (the higher the safer)
+                        if (pair_percentage.second >= 0.8){
+                            if (u.size() == unitig.size()){
+                                size_t length_u1 = 0, length_u2 = 0;
+                                for (size_t j = 0; j < u.size(); ++j)
+                                {
+                                    length_u1 += Common::return_unitig(sequence_map, u[j]).size();
+                                    length_u2 += Common::return_unitig(sequence_map, unitig[j]).size();
+                                }
+                                return {(length_u1 > length_u2)?1:0,i};
+                            }
+                            return {pair_percentage.first, i};
+                        }
+                    }
+                    return {-1,-1};
+                };
     /*
-     * Testing - standard approach
+     * Standard Approach
      */
     cout << "MCP standard approach"<<endl;
     priority_queue<pair<size_t,vector<OwnNode_t>>> unitigs_nf_with_freqs_2 = apdbg.solve_std_mcp(sequence_map);
@@ -724,12 +737,35 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
     while(!unitigs_nf_with_freqs_2.empty()) {
         pair<size_t,vector<OwnNode_t>> u = unitigs_nf_with_freqs_2.top();
         unitigs_nf_with_freqs_2.pop();
-        unitigs_nf_2.push_back(u.second);
-        flows_2.push_back(u.first);
-        cout << "Flow: "<<u.first<<endl;
-        for (auto u:u.second)
-            cout << " " << u <<" -> ";
-        cout << endl;
+        std::pair<int, int> pair_subs = __find_similarity(unitigs_nf_2, u.second);
+        if (pair_subs.first == -1){
+            unitigs_nf_2.push_back(u.second);
+            flows_2.push_back(u.first);
+            cout << "Flow: "<<u.first<<endl;
+            for (auto u:u.second)
+                cout << " " << u <<" -> ";
+            cout << endl;
+        } else {
+            cout << "Sustitution: "<<pair_subs.first<<" at "<<pair_subs.second<<endl;
+            if (pair_subs.first == 1) {
+                cout << "My length: "<<u.second.size() << " The one that covers me: "<<unitigs_nf_2[pair_subs.second].size()<<endl;
+                cout << "Original flow: "<<flows_2[pair_subs.second]<<" Adding: "<<u.first<<endl;
+                flows_2[pair_subs.second] += u.first;
+                cout << "Final flow: "<<flows_2[pair_subs.second]<<" Unitig: "<<pair_subs.second<<endl;
+             } else { 
+                cout << "My length: "<<u.second.size() << " The one I cover: "<<unitigs_nf_2[pair_subs.second].size()<<endl;
+                cout << "Original flow: "<<flows_2[pair_subs.second]<<" Increase: "<<u.first<<endl;
+                cout << "Final flow: "<<flows_2[pair_subs.second] + u.first<<endl;
+                unitigs_nf_2.push_back(u.second);
+                flows_2.push_back(flows_2[pair_subs.second] + u.first);
+                unitigs_nf_2.erase(unitigs_nf_2.begin() + pair_subs.second);
+                flows_2.erase(flows_2.begin() + pair_subs.second);
+                cout << "Flow (reinsertion case): "<<u.first<<endl;
+                for (auto u:u.second)
+                    cout << " " << u <<" -> ";
+                cout << endl;
+            }
+        }
     }
     string str_obj_nf_2("tmp/unitigs-viaDBG-nf-std.fasta");
     char * write_path_nf_2 = &str_obj_nf_2[0];
