@@ -19,7 +19,6 @@ class UtilsReport:
         chart = alt.Chart(df).mark_bar().encode(alt.X('X',  bin=alt.Bin(maxbins=100)), y = 'Y')
         chart.save(path)
 
-
 class RepresentantGraph:
     exeBcalm = 'third-party/bcalm/build/bcalm'
     exeGFA = 'third-party/bcalm/scripts/convertToGFA.py'
@@ -67,23 +66,26 @@ class RepresentantGraph:
                     fWrite.write(str(self._freqs[key])+' ')
                     fWrite.write(str(self._lengths[key])+' \n')
 
-    def __init__(self, path = None, kmerSize = 30, abundanceMin = 1, meta = False):
+    def __init__(self, path = None, kmerSize = 30, abundanceMin = 1, meta = False, filtering = True, output_prefix = 'tmp/unitigs'):
         self._g, self._kmerSize = self.GraphStruct(), int(kmerSize)
         # Primer lanzamiento para definir la abundancia
+        self.outFile = output_prefix
         args = {'in':path, 'kmerSize':kmerSize,'abundanceMin':abundanceMin,'out':self.outFile}
         cmd = [self.exeBcalm,'-in',args['in'],'-histo','1','-kmer-size',args['kmerSize'],'-abundance-min',args['abundanceMin'],'-out',args['out']]
         print('Bcalm cmd (first launch): ',cmd)
         Utils.executecmd(cmd)
-        args['abundanceMin'] = str(self.__study_frequency_histograms(int(abundanceMin), meta = meta))
-        Utils.remove_file('tmp/unitigs')
+        args['abundanceMin'] = str(self.__study_frequency_histograms(int(abundanceMin), meta = meta, filtering = filtering))
+        Utils.remove_file(self.outFile)
         self.__produceGraphFile(args)
         self.__indexGFA(self.outFile, args['abundanceMin'])
         self._g.exportGraph(self.outFile+self._graphExt, args)
         print('End!')
 
-    def __study_frequency_histograms(self, abundanceMin = 1, meta = False):
+    def __study_frequency_histograms(self, abundanceMin = 1, meta = False, filtering = True):
         if meta:
             return 3
+        if not filtering:
+            return 0
         file, file_w = self.outFile+'.histo', self.outFile+'.histo.txt'
         def roundup(x):
             return int(math.ceil(x / 10.0)) * 10
@@ -242,6 +244,103 @@ class RepresentantGraph:
                         if ori > 2*numSeqs:
                             print("Ori higher: ", ori)
                         self._g.addEdge(ori, target)
+MAX_AMPLICON = 4
+class AmpliconsGraph:
+    _nodes_map = dict()
+    _nodes = []
+    _active_nodes = []
+    _edges = []
+    _lengths = []
+    _freqs = []
+
+    def __init__(self, files, files_edges, nodes_deactivated):
+        for i, file in enumerate(files):
+            if i >= MAX_AMPLICON:
+                break
+            self.addVertices(file, i, nodes_deactivated[i])
+            self.addEdges(file, i)
+        for i, file in enumerate(files_edges):
+            if i >= MAX_AMPLICON:
+                break
+            self.addExtraEdges(file, i, i+1)
+
+    def numVertices(self):
+        return len(self._nodes)
+
+    def numEdges(self):
+        edges = 0
+        for set_edges in self._edges:
+            edges += len(set_edges)
+        return edges
+
+    def addVertices(self, file, amplicon = 0, nodes_deactivated = None):
+        num_vertices = len(self._nodes)
+        with open(file, 'r+') as f:
+            for line in f.readlines():
+                line_split = line.strip().split(' ')
+                l_line_split = len(line_split)
+                if int(line_split[0]) in nodes_deactivated:
+                    continue
+                self._nodes_map[(amplicon,int(line_split[0]))] = num_vertices
+                self._nodes.append((amplicon,int(line_split[0])))
+                self._lengths.append(int(line_split[l_line_split - 1]))
+                self._freqs.append(float(line_split[l_line_split - 2]))
+                self._edges.append([])
+                num_vertices += 1
+    
+    def addEdges(self, file, amplicon = 0):
+        with open(file, 'r+') as f:
+            for line in f.readlines():
+                line_split = line.strip().split(' ')
+                l_line_split = len(line_split)
+                for edge in line_split[1:-2]:
+                    if ((amplicon, int(line_split[0])) not in self._nodes_map.keys()) or ((amplicon, int(edge)) not in self._nodes_map.keys()):
+                        continue
+                    self._edges[self._nodes_map[(amplicon, int(line_split[0]))]].append(self._nodes_map[(amplicon, int(edge))])
+    
+    def addExtraEdges(self, file, amplicon_left = 0, amplicon_right = 1):
+        with open(file, 'r+') as f:
+            for line in f.readlines():
+                line_split = line.strip().split(' ')
+                if ((amplicon_left,int(line_split[0])) not in self._nodes_map.keys()) or ((amplicon_right,int(line_split[1])) not in self._nodes_map.keys()):
+                        continue
+                node_left, node_right = self._nodes_map[(amplicon_left,int(line_split[0]))], self._nodes_map[(amplicon_right,int(line_split[1]))]
+                self._edges[node_left].append(node_right)
+
+    def show_graph(self):
+        for i, edges in enumerate(self._edges):
+            print('Node: ', i,' ',self._nodes[i],' Length: ', self._lengths[i], ' Freq: ',self._freqs[i])
+            print('Edges: ')
+            for edge in edges:
+                print(edge)
+
+    def exportGraph(self, outputFile_graph, outputFile_unitigs, files_unitigs):
+        print('Exporting graph in: ', outputFile_graph)
+        with open(outputFile_graph, 'w+') as fWrite:
+            numKeys = len(self._nodes)
+            fWrite.write(str(numKeys)+' 10 \n')
+            for key, edges in enumerate(self._edges):
+                fWrite.write(str(key)+' ')
+                for v in edges:
+                    fWrite.write(str(v)+' ')
+                fWrite.write(str(int(self._freqs[key]))+' ')
+                fWrite.write(str(self._lengths[key])+' \n')
+        print('Exporting unitigs in: ', outputFile_unitigs)
+        with open(outputFile_unitigs,'w+') as fWrite:
+            for amplicon,file in enumerate(files_unitigs):
+                reads_dict = BioUtils.get_sequences_faf(file)
+                for key, val in reads_dict.items():
+                    if ((amplicon, int(key)) in self._nodes_map.keys()):
+                        fWrite.write('>'+str(self._nodes_map[(amplicon, int(key))])+'\n'+str(val)+'\n')
+        # Exporting map
+        self._exportMap('/'.join(outputFile_graph.strip().split('/')[:-1]+['map.txt']))
+    
+    def _exportMap(self, output_file):
+        print('Exporting Amplicons/unitigs map: ', output_file)
+        with open(output_file, 'w+') as fWrite:
+            for key, val in self._nodes_map.items():
+                fWrite.write(str(key)+' '+str(val)+'\n')
+        
 
 if __name__=='__main__':
     tmpDir, resDir = 'tmp/', 'tmpresultsDir_'
@@ -254,9 +353,11 @@ if __name__=='__main__':
         Utils.remove_dir(resDir)
         Utils.mkdir(resDir)
         Utils.mkdir(resDir_paired)
-        files = Utils.get_files_recursive(path, ['fastq'])
+        files = Utils.get_files_recursive(path, ['fastq','fasta'])
         files.sort()
         print('Files: ', files)
+        if len(files) > 0:
+            extension = files[0].split('.')[-1]
         if correct:
             cmd = ['karect','-correct','-matchtype=hamming','-celltype=haploid','-resultdir='+resDir]+['-inputfile='+t for t in files]
             Utils.executecmd(cmd)
@@ -271,7 +372,10 @@ if __name__=='__main__':
         # Opcion A
         # newFiles = BioUtils.renameFastqSeqs(files, tmpDir)
         # Opcion B
-        newFiles = [BioUtils.fastqtofasta(f,tmpDir+'/'+str(i)+'.fasta') for i,f in enumerate(files)]
+        if extension == 'fastq' or extension == 'fq':
+            newFiles = [BioUtils.fastqtofasta(f,tmpDir+'/'+str(i)+'.fasta') for i,f in enumerate(files)]
+        else:
+            newFiles = files
         print('NewFiles: ', newFiles)
         Utils.mkdir(tmpDir+suffix)
         return [Utils.append_files_bash(newFiles, outputFile), newFiles[0]]
@@ -361,19 +465,28 @@ if __name__=='__main__':
 
     type = sys.argv[4]
     if type == 'ngs':
-        pear, correction, meta = (sys.argv[6] == '--joined'), (sys.argv[5] == '--correct'), (sys.argv[7] == '--meta')
-
+        pear, correction, meta, filtering = (sys.argv[6] == '--joined'), (sys.argv[5] == '--correct'), (sys.argv[7] == '--meta'), True
+        if len(sys.argv) > 8:
+            filtering = not (sys.argv[8] == '--no-filter')
+            output_prefix = sys.argv[9]
+            tmpDir = '/'.join(output_prefix.split('/')[:-1])+'/tmp'
         print('*************** Summary *********************')
         print('Pear: ', pear)
         print('Correct: ', correction)
         print('Meta: ', meta)
+        print('Temporary directory: ', tmpDir)
+        print('Reads directory: ', sys.argv[1])
         print('*********************************************')
         pathIn = __preprocess_karect(sys.argv[1], correction)
         path, kmerSize, abundanceMin = pathIn[0], sys.argv[2], sys.argv[3]
+        print('*********************************************')
+        print('Abundance min (not in use): ', abundanceMin)
         print('Path: ', path)
-        rG = RepresentantGraph(path, kmerSize, abundanceMin, meta = meta)
+        print('Kmer-size: ', kmerSize)
+        print('*********************************************')
+        rG = RepresentantGraph(path, kmerSize, abundanceMin, meta = meta, filtering = filtering, output_prefix = tmpDir+'/unitigs')
     elif type == 'tgs':
-        method = 'lordec'
+        method = 'hifi' if 'hifi' in sys.argv else 'lordec'
         if method == 'consent':
             pathIn = __preprocess_tgs(sys.argv[1])
         elif method == 'lordec':
@@ -383,8 +496,274 @@ if __name__=='__main__':
             # Iterative execution
             technique = sys.argv[5]
             pathIn = __preprocess_tgs(sys.argv[1], sys.argv[2], sys.argv[3], technique=technique)
+            __create_s_pe(pathIn[0])
+        elif method == 'hifi':
+            print('Hifi reads High Fidelity reads - correction there is no need')
+            rG = RepresentantGraph(path, kmerSize, abundanceMin, meta = meta, filtering = filtering, output_prefix = tmpDir+'/unitigs')
         #pathIn = ['/home/bfreire/Gatb-trial/tmpresultsDir_Consent/CONSENT_corrected.fasta']
-        __create_s_pe(pathIn[0])
+    elif type == 'amplicons':
+        KMER_SIZE = 65
+        def _create_amplicons_segments(df_amplicons, reference, reads, output_dir_tmp = 'tmp_amplicons/', reference_file = None):
+            # Splits, makes and align the reads to each segment the index for each amplicon
+            def __build_index(ref_file, index_prefix, program = 'bowtie2'):
+                BioUtils.build_align_index(ref_file, index_prefix, program)
+                return index_prefix
+            def __align_reads(reads, index_prefix, output_path, sam_file):
+                sam_left, sam_right = sam_file+'_1.sam',sam_file+'_2.sam'
+                # Left reads alignment and selection
+                BioUtils.align_single_end_reads(reads[0],index_prefix, sam_left,permissive=True)
+                df_left = pd.read_csv(sam_left, sep = '\t', header = None, names = [i for i in range(19)])
+                df_left = df_left.loc[df_left[5] != '*',]
+                reads_aligned_left = set(df_left[0])
+                output_left = output_path+'_1.fasta'
+                # Right reads alignmen and selection
+                BioUtils.align_single_end_reads(reads[1],index_prefix, sam_right, permissive=True)
+                df_right = pd.read_csv(sam_right, sep = '\t',header = None, names = [i for i in range(19)])
+                df_right = df_right.loc[df_right[5] != '*',]
+                reads_aligned_right = set(df_right[0])
+                # TODO: Chequear si esto es necesario
+                reads_set_interest = reads_aligned_left.intersection(reads_aligned_right)
+                output_right = output_path+'_2.fasta'
+                BioUtils.write_paired_end_reads_by_place(reads, reads_set_interest, (output_left, output_right))
+                return  output_left, output_right
+            def __align_reads_complete(reads, index_prefix_reference, sam_file, program = 'bowtie2'):
+                sam_left, sam_right = sam_file+'_1.sam',sam_file+'_2.sam'
+                # Left reads alignment against reference
+                BioUtils.align_single_end_reads(reads[0],index_prefix, sam_left, permissive=True,program = program)
+                df_left = pd.read_csv(sam_left, sep = '\t', header = None, names = [i for i in range(19)])
+                # Right reads alignment against reference
+                BioUtils.align_single_end_reads(reads[1],index_prefix, sam_right, permissive=True, program = program)
+                df_right = pd.read_csv(sam_right, sep = '\t',header = None, names = [i for i in range(19)])
+                return df_left, df_right
+            def __distribute_per_amplicon(reads, df_sam, amplicons_limits, amplicon_file_reads, suffix = '_1.fasta', program = 'bowtie2'):
+                print('Distribute per amplicon: ', suffix)
+                amplicon_reads = dict()
+                print(df_sam.shape)
+                # TODO: Add progress bar
+                for i,(index, row) in enumerate(df_sam.iterrows()):
+                    if program == 'bwa':
+                        if i < 2:
+                            continue
+                    if row[5] == '*':
+                        continue
+                    start, end = int(row[3]), int(row[3])+len(row[9])
+                    already_in = False
+                    for amplicon, pair in enumerate(amplicons_limits):    
+                        next_amplicon = None
+                        if amplicon < (len(amplicons_limits)-1):
+                            next_amplicon = amplicons_limits[amplicon + 1]
+                        if pair[0] <= start and start <= pair[1]:#and pair[1] >= end: 
+                            if amplicon not in amplicon_reads.keys():
+                                amplicon_reads[amplicon] = []
+                            amplicon_reads[amplicon].append(int(row[0]))
+                            already_in = True
+                            # We avoid one read to join two different amplicons
+                            # break
+                # Write reads
+                for key, val in amplicon_reads.items():
+                    # Create the folders structure
+                    tmp_dir = output_dir_tmp+str(key)
+                    Utils.mkdir(tmp_dir)
+                    tmp_reads_dir = tmp_dir+'/aligned_reads/'
+                    Utils.mkdir(tmp_reads_dir)
+                    tmp_reads_file = tmp_dir+'/aligned_reads/read'+suffix
+                    BioUtils.write_single_end_by_place(reads, val, tmp_reads_file)
+                    if key not in amplicon_file_reads.keys():
+                        amplicon_file_reads[key] = []
+                    amplicon_file_reads[key].append(tmp_reads_file)
+            def __launch_first_step_viquf(aligned_reads_dir, tmp_dir_ori):
+                tmp_dir = tmp_dir_ori+'/tmp'
+                # Arreglar esta ruta relativa
+                exe = 'python'
+                cmd = [exe,'/home/bfreire/Gatb-trial/scripts/testBcalm.py',aligned_reads_dir,str(KMER_SIZE),'10','ngs','--no-correct','--no-join','--no-meta','--no-filter',tmp_dir]
+                print('Launching first step of viquf')
+                Utils.executecmd(cmd)
+                graph_path, unitigs_path = tmp_dir+'/unitigs.scaled.graph', tmp_dir+'/unitigs.unitigs.fa'
+                pair_end_reads = tmp_dir_ori+'/aligned_reads/'
+                output_path, append_path = tmp_dir_ori+'/unitigs_ViQUF', tmp_dir_ori+'/tmpOwnlatest/append.fasta'
+                cmd = ['./bin/output.out',tmp_dir,str(KMER_SIZE),graph_path, unitigs_path,output_path,append_path,pair_end_reads,'--debug','--virus']
+                print('Executing full ViQUF')
+                Utils.executecmd(cmd)
+                return tmp_dir
 
+            def __get_max_abundance(amplicon_graph_file, output_dir):
+                # We want the depth per base to be able to normalize
+                # TODO: In real cases we should remove low frequency cases before to avoid fake information to be part of the MEAN
+                suma_abundance, suma_length, max_abundance = 0, 0, 0
+                with open(amplicon_graph_file, 'r+') as f_read:
+                    for i, line in enumerate(f_read.readlines()):
+                        if i == 0: 
+                            continue
+                        line_split = line.strip().split(' ')
+                        suma_abundance += float(line_split[-2])*float(line_split[-1])
+                        suma_length += float(line_split[-1])
+                        max_abundance = float(line_split[-2]) if float(line_split[-2]) > max_abundance else max_abundance
+                if suma_abundance != 0:
+                    ab_mean_base = (suma_abundance / suma_length)
+                else:
+                    ab_mean_base = 1
+                output_file = output_dir+'/mean_amp_ab.txt'
+                with open(output_file, 'w+') as f_write:
+                    f_write.write(str(ab_mean_base))
+                output_file = output_dir+'/max_amp_ab.txt'
+                with open(output_file, 'w+') as f_write:
+                    f_write.write(str(max_abundance))
+                return output_file, max_abundance#ab_mean_base
+            ref_index_dir = output_dir_tmp+'/ref_index/'
+            index_prefix = ref_index_dir+'bowtie2_index'
+            Utils.mkdir(ref_index_dir)
+            # Reference index build
+            __build_index(reference_file, index_prefix, program = 'bwa')
+            amplicon_boundaries = [(row['start'], row['end']) for index, row in df_amplicons.iterrows()]
+            # Reads alignment
+            df_left, df_right = __align_reads_complete(reads,index_prefix, sam_file = ref_index_dir+'/sam_file', program = 'bwa')
+            # Distribute reads by amplicons
+            amplicon_file_reads = dict()
+            # amplicon_file_reads = {key:(output_dir_tmp+str(key)+'/aligned_reads/read_1.fasta',output_dir_tmp+str(key)+'/aligned_reads/read_2.fasta') 
+            #    for key, (index,row) in enumerate(df_amplicons.iterrows())}
+            __distribute_per_amplicon(reads[0], df_left, amplicon_boundaries, amplicon_file_reads,suffix = '_1.fasta', program='bwa')
+            __distribute_per_amplicon(reads[1], df_right, amplicon_boundaries, amplicon_file_reads,suffix = '_2.fasta', program = 'bwa')
+            max_ab_amp, rate_ab_amplicon = dict(), dict()
+            for i,(index, row) in enumerate(df_amplicons.iterrows()):
+                if i >= MAX_AMPLICON:
+                    break
+                tmp_dir = output_dir_tmp+str(i)
+                Utils.mkdir(tmp_dir)
+                tmp_file = tmp_dir+'/amplicon_ref.fa'
+                with open(tmp_file, 'w+') as f_write:
+                    f_write.write('>amplicon_ref_'+str(i)+'\n')
+                    f_write.write(reference[row['start']:row['end']])
+                tmp_index_dir = tmp_dir+'/index'
+                index_prefix = tmp_index_dir+'/bowtie2_index'
+                Utils.mkdir(tmp_index_dir)
+                __build_index(tmp_file,index_prefix)
+                # Align the reads
+                tmp_reads_dir = tmp_dir+'/aligned_reads/'
+                aligned_reads = amplicon_file_reads[i]
+                print('Reads written: ', aligned_reads)
+                # Launch bcalm for general purposes
+                tmp_dir_viquf = __launch_first_step_viquf(tmp_reads_dir, tmp_dir)
+                tmp_dir_viquf = tmp_dir+'/tmp'
+                # Get max abundance read per amplicon
+                suffix, suffix_unitigs = '/unitigs.graph', '/unitigs.unitigs.fa'
+                abundance_report_file, max_ab = __get_max_abundance(tmp_dir_viquf+suffix,tmp_dir_viquf)
+                max_ab_amp[i] = max_ab
+                print('Max abundance reported: ', abundance_report_file,' With max abundance: ', max_ab)
+            max_val = 0
+            for key, val in max_ab_amp.items():
+                if val > max_val:
+                    max_val = val
+            rate_ab_amplicon = {key:max_val/val for key, val in max_ab_amp.items()}
+            print('Maximal abundance: ', max_val)
+            # print('Mean abundances amplicon: ', max_ab_amp)
+            # print('Rate abundance amplicon: ',rate_ab_amplicon)
+            # Readjust frequencies per unitigs and amplicons and reverse complement unitigs
+            graphs_files, unitigs_files_complete = [], []
+            for key,val in rate_ab_amplicon.items():
+                tmp_dir = output_dir_tmp+str(key)+'/tmp/'
+                file_read, file_scaled = tmp_dir+'/unitigs.graph', tmp_dir+'/unitigs.scaled.graph'
+                graphs_files.append(file_scaled)
+                with open(file_read, 'r+') as f_read, open(file_scaled, 'w+') as f_write:
+                    for i, line in enumerate(f_read.readlines()):
+                        if i == 0:
+                            continue
+                        line_split = line.strip().split(' ')
+                        line_split[len(line_split)-2] = str(int(float(line_split[len(line_split)-2])*val))
+                        line_write = ' '.join(line_split)+'\n'
+                        f_write.write(line_write)
+                # Reverse complement unitigs files
+                unitig_file, unitig_file_rc = tmp_dir+'/unitigs.unitigs.fa',tmp_dir+'/unitigs.unitigs.rc.fa'
+                new_seqs = BioUtils.reverse_complement_from_file(unitig_file)
+                BioUtils.export_fasta_from_dict(new_seqs, unitig_file_rc)
+                unitigs_files_complete.append(unitig_file_rc)
+            return graphs_files, unitigs_files_complete
+        def _join_amplicons(graphs_files, unitigs_files):
+            ALIGNMENT_SLACK = 0.015
+            print('Joining par_wise amplicons')
+            print('Number of amplicons: ', len(unitigs_files))
+            new_alignment_files = []
+            # Nodes deactivated because of contained information
+            nodes_deactivated = {i:[] for i in range(len(unitigs_files))}
+            for i in range(len(unitigs_files)-1):
+                unitigs_file_left, graph_file_left = unitigs_files[i], graphs_files[i]
+                unitigs_file_right, graph_file_right = unitigs_files[i+1], graphs_files[i+1]
+                zero_out_degree, zero_in_degree = [], []
+                with open(graph_file_left, 'r+') as f:
+                    for line in f.readlines():
+                        line_split = line.strip().split(' ') 
+                        if len(line_split) == 3:
+                            zero_out_degree.append(line_split[0])
+                nodes,nodes_in = [],dict()
+                with open(graph_file_right,'r+') as f:
+                    for line in f.readlines():
+                        line_split = line.strip().split(' ')
+                        nodes.append(line_split[0])
+                        l_line = len(line_split)
+                        for j in range(1,l_line-2):
+                            nodes_in[line_split[j]] = False
+                    # We get all nodes from the next amplicon
+                    for node in nodes:
+                        #if node not in nodes_in.keys():
+                        zero_in_degree.append(node)
+                u_l_dict, u_r_dict = BioUtils.get_sequences_faf(unitigs_file_left),BioUtils.get_sequences_faf(unitigs_file_right)
+                '''if i == 15:
+                    print('Amplicon: ',i)
+                    print(zero_out_degree)
+                    print(zero_in_degree)'''
+                new_alignments = []
+                for node_left in zero_out_degree:
+                    seq_1 = u_l_dict[node_left]
+                    for node_right in zero_in_degree:
+                        seq_2 = u_r_dict[node_right]
+                        alignment = BioUtils.align_two_seqs(seq_1, seq_2)
+                        '''if i == 10 and node_right == '60':
+                            print('Alignment: ', alignment)
+                            if '-' in alignment.seqB[int(len(alignment.seqB)-alignment.score):]:
+                                print('Contained alignment: ', alignment)'''
+                        if alignment.score > (KMER_SIZE + 2*BioUtils.GAP_PENALIZATION):
+                            # We remove proper alignments which end with '-' in the right seq (it means it is contained)
+                            if '-' in alignment.seqB[int(len(alignment.seqB)-alignment.score):] and len(seq_2) <= len(seq_1):
+                                nodes_deactivated[i+1].append(int(node_right))
+                                continue
+                            new_alignments.append((node_left, node_right))
+                new_alignment_file = '/'.join(unitigs_file_left.split('/')[:-1]+['alignments.txt'])
+                with open(new_alignment_file,'w+') as f_write:
+                    for (left, right) in new_alignments:
+                        f_write.write(left+' '+right+'\n')
+                new_alignment_files.append(new_alignment_file)
+            return graphs_files, unitigs_files, new_alignment_files, nodes_deactivated
+        def _build_complete_graph(graphs_files, unitigs_files, extra_alignments_files, nodes_deactivated):
+            return AmpliconsGraph(graphs_files, extra_alignments_files, nodes_deactivated)
+        # reads_dir, reference, amplicons_file, type, filter
+        reads_dir = sys.argv[1]
+        files = Utils.get_files_recursive(reads_dir, ['fasta'])
+        files.sort()
+        assert len(files) == 2
+        reads_left, reads_right = files[0], files[1]
+        reference_file, amplicons_file = sys.argv[2], sys.argv[3]
+        filtering = (sys.argv[5] == '--no-filter')
+        print('*************** Summary *********************')
+        print('Amplicons processing with reads: ', reads_left,' ', reads_right)
+        print('Reference file: ', reference_file)
+        print('Amplicons file: ', amplicons_file)
+        print('Filter: ', filtering)
+        print('*********************************************')
+        # Get reference and amplicons
+        reference = BioUtils.readReference(reference_file)
+        amplicons = BioUtils.getAmplicons(amplicons_file)
+        # Store amplicons tmp
+        dir_tmp_amplicons = 'tmp_amplicons/'
+        Utils.mkdir(dir_tmp_amplicons)
+        # Join paired_end files in tmp dir
+        Utils.append_files([reads_left, reads_right], dir_tmp_amplicons+'append.fasta')
+        graphs_files, unitigs_files = _create_amplicons_segments(amplicons, reference, (reads_left,reads_right), reference_file=reference_file)
+        # Join amplicons between them (using only fw strain)
+        graphs_files, unitigs_files, extra_alignments_files, nodes_deactivated = _join_amplicons(graphs_files, unitigs_files)
+        # Build graph amplicons
+        graph_amplicons = _build_complete_graph(graphs_files, unitigs_files, extra_alignments_files, nodes_deactivated)
+        # Get final graph file with unitigs
+        graph_file, final_unitigs = dir_tmp_amplicons+'amplicons.graph', dir_tmp_amplicons+'unitigs.unitigs.fa'
+        graph_amplicons.exportGraph(graph_file,final_unitigs, unitigs_files)
+        sys.exit(1)
 
     #BioUtils.identicalClustering(__preprocess2([pathIn[1],rG.getOutFile()]))

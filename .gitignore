@@ -1,3 +1,5 @@
+test_review_equi_case/*
+meta-data
 *.log
 *.sh
 6Polio
@@ -13,8 +15,10 @@ quast_results
 results
 stats/*
 test
+test*
 scripts/output*
 tmp/*
+tmp_amplicons/*
 tmpresults*
 abundance*
 *.h5

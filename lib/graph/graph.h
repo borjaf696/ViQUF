@@ -36,7 +36,7 @@
 #define MIN_LENGTH_PATH 500
 
 // MaxPATH = 3 - MAX_BRANCHES 6
-#define INF 9999999999
+#define INF 1410065407
 #define NO_NEIGH 9999999
 #define MAX_PATH 750
 #define MAX_BRANCHES 20
@@ -641,14 +641,14 @@ public:
     string toString();
     void stats();
     void print(OwnNode_t = INF, OwnNode_t = INF, string = "graphs/adbg.txt");
-    void export_to_gfa(const vector<string> &, string = "graphs/adbg.gfa");
+    void export_to_gfa(const vector<string> &, string = "graphs/adbg.gfa", bool = false);
     void post_process_pairs(const vector<string> &);
     /*
      * Solve Flow-problems
      */
     float to_max_flow_solution();
     priority_queue<pair<size_t,vector<OwnNode_t>>> get_min_cost_flow_paths(float = -1);
-    priority_queue<pair<size_t,vector<OwnNode_t>>> solve_std_mcp(const vector<string> & );
+    priority_queue<pair<size_t,vector<OwnNode_t>>> solve_std_mcp(const vector<string> &, bool = false);
     void mcp_example();
     /*
      * Split_map methods
@@ -662,6 +662,19 @@ public:
     {
         _split_map[key].emplace(val);
     }
+
+    void add_synthetic_edge_frequencies()
+    {
+        for (size_t i = 0; i < _g_edges.size(); ++i)
+        {
+            for (size_t j = 0; j < _g_edges[i].size(); ++j)
+            {
+                _g_edges_reads[i][j] = _g_nodes[_g_edges[i][j]]._abundance;
+            }
+        }
+    }
+    // Temporal
+    vector<UG_Node> _get_starting_nodes_basic();
 private:
     void _get_internal_stats(const vector<string>&);
     size_t _find_edge(OwnNode_t, OwnNode_t, bool = true);
@@ -684,7 +697,6 @@ private:
     void _extension(queue<UG_Node>&, vector<bool>&, vector<OwnNode_t>&, UG_Node,
             size_t&, size_t&,size_t&, size_t&, size_t&,size_t&,vector<vector<OwnNode_t>>&,
                     vector<bool>&, bool, const vector<string> &);
-    vector<UG_Node> _get_starting_nodes_basic();
     vector<UG_Node> _get_potential_sinks_basic();
     void _extension_basic(vector<vector<vector<OwnNode_t>>>&,vector<vector<vector<OwnNode_t>>>&, UG_Node, vector<bool>&,std::ofstream&,
             size_t &,const vector <string> & , bool = true, OwnNode_t = INF);
@@ -849,12 +861,12 @@ public:
             }
         }
     }
-    void export_to_gfa(const vector<string> & sequence_map, const string file_name)
+    void export_to_gfa(const vector<string> & sequence_map, const string file_name, bool full_unitig_map = false)
     {
         std::ofstream outfile(file_name, std::ofstream::binary);
         outfile << "H\tVN:Z:1.0"<<endl;
         for (auto n:_g_nodes)
-            outfile << "S\t"<<n._id<<"\t"<<Common::return_unitig(sequence_map,n._val)<<endl;
+            outfile << "S\t"<<n._id<<"\t"<<Common::return_unitig(sequence_map,n._val, full_unitig_map)<<endl;
         size_t id = 0;
         for (auto n:_g_edges)
         {

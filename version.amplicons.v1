@@ -1,0 +1,11 @@
+Primer aproximación:
+    * Separamos las lecturas en amplicones.
+        * Cada lectura va a un amplicon (o no, eso no está verificado)
+        * Construímos la secuencia de cada amplicón y alineamos las lecturas contra estos y distribuímos las lecturas acorde.
+    * Corremos la primera etapa de ViQUF en cada amplicon y obtenemos el grafo de ensamblaje por amplicon con sus estimaciones de abundancia.
+    * Normalizamos las abundancias:
+        * Para cada amplicón obtenemos la media de abundancia por base.
+        * Obtenemos la abundancia media máxima por base en un amplicon.
+        * Calculamos un ratio de escalado de la abundancia de cada amplicón con respecto a esta máxima.
+    * Actualizamos el fichero .graph
+    * Pensar en como juntar ahora los amplicones en orden y tratar de extender los contigs.
