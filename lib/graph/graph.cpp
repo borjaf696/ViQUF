@@ -2456,7 +2456,7 @@ void DBG::subsane(const vector<string> & sequence_map)
         _complete_reach_matrix();
 }
 
-void DBG::export_to_gfa(const vector<string> & sequence_map, string file_name, bool full_unitig_map = false)
+void DBG::export_to_gfa(const vector<string> & sequence_map, string file_name, bool full_unitig_map)
 {
     std::ofstream outfile(file_name, std::ofstream::binary);
     outfile << "H\tVN:Z:1.0"<<endl;
@@ -3570,10 +3570,13 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
     NS::ProblemType status = ns.run(NS::BLOCK_SEARCH);
     switch (status) {
         case NS::INFEASIBLE:
+        {
             cerr << "Infeasible flow" << endl;
             exit(1);
+        }
             break;
         case NS::OPTIMAL:
+        {
             ns.flowMap(flows);
             if (show)
                 nw_file << "Cost: "<<ns.totalCost()<<endl;
@@ -3758,10 +3761,13 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> UG::report_min_cost_flow(const ve
             }
             if (show)
                 nw_file << "End MCF"<<endl;
+        }
             break;
         case NS::UNBOUNDED:
+        {
             cerr << "infinite flow" << endl;
             exit(1);
+        }   
             break;
         default:
             break;
@@ -3862,6 +3868,10 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::get_min_cost_flow_paths(floa
     vector<Graph::Node> id_to_fn = vector<Graph::Node>(_g_nodes.size() + 2);
     Graph::ArcMap<Capacity> available_flow(fn);
     /*
+     *  Result paths
+     */
+    priority_queue<pair<size_t,vector<OwnNode_t>>> result_paths;
+    /*
      * Adding nodes
      */
     Graph::Node s = fn.addNode(), t = fn.addNode();
@@ -3920,11 +3930,13 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::get_min_cost_flow_paths(floa
     NS::ProblemType status = ns.run();
     switch (status) {
         case NS::INFEASIBLE:
+        {
             cerr << "insufficient flow" << endl;
+        }
             break;
         case NS::OPTIMAL:
+        {
             unordered_set<OwnNode_t> targets_set, sources_set;
-            priority_queue<pair<size_t,vector<OwnNode_t>>> result_paths;
             for (auto t: sink_nodes)
                 targets_set.emplace(t._id);
             for (auto s: sources_nodes)
@@ -4033,19 +4045,23 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::get_min_cost_flow_paths(floa
             }
             cout << "Results path: "<<result_paths.size()<<endl;
             return result_paths;
+        }
             break;
         case NS::UNBOUNDED:
+        {
             cerr << "infinite flow" << endl;
+        }
             break;
         default:
             break;
     }
+    return result_paths;
 }
 
 /*
  * MCP with no flow in a graph
  * */
-priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<string> & sequence_map, bool flag_full_unitigs_map = false)
+priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<string> & sequence_map, bool flag_full_unitigs_map)
 {
     /*
      * Debugging files
@@ -4060,6 +4076,10 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
     Graph::NodeMap<OwnNode_t> translation_map(fn);
     vector<Graph::Node> id_to_fn = vector<Graph::Node>(_g_nodes.size() + 4);
     Graph::ArcMap<Capacity> available_flow(fn);
+    /*
+     * Output results
+     */
+    priority_queue<pair<size_t,vector<OwnNode_t>>> result_paths;
     /*
      * When no flow is required
      */
@@ -4228,11 +4248,13 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
     NS::ProblemType status = ns.run(NS::BLOCK_SEARCH);
     switch (status) {
         case NS::INFEASIBLE:
+        {
             cerr << "insufficient flow" << endl;
+        }
             break;
         case NS::OPTIMAL:
+        {
             unordered_set<OwnNode_t> targets_set, sources_set;
-            priority_queue<pair<size_t,vector<OwnNode_t>>> result_paths;
             for (auto t: sink_nodes)
                 targets_set.emplace(t._id);
             for (auto s: sources_nodes)
@@ -4429,13 +4451,17 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
             if (Parameters::get().debug)
                 nw_file << "Results path: "<<result_paths.size()<<endl;
             return result_paths;
+        }
             break;
         case NS::UNBOUNDED:
+        {
             cerr << "infinite flow" << endl;
+        }
             break;
         default:
             break;
     }
+    return result_paths;
 }
 
 /*
@@ -4496,9 +4522,12 @@ void DBG::mcp_example()
     NS::ProblemType status = ns.run();
     switch (status) {
     case NS::INFEASIBLE:
+    {
         cout << "insufficient flow" << endl;
+    }
         break;
     case NS::OPTIMAL:
+    {
         ns.flowMap(flows);
         cout << "flow[a]=" << ns.flow(a) << " flow[b]=" << flows[b] << endl;
         cout << "flow[ar]=" << ns.flow(a_r) << " flow[b_r]=" << flows[b_r] << endl;
@@ -4506,13 +4535,14 @@ void DBG::mcp_example()
         cout << "flow[xt]=" << ns.flow(xt) << endl;
         cout << "flow[ts]=" << ns.flow(ts) << endl;
         cout << "cost=" << ns.totalCost() << endl; 
+    }
         break;
     case NS::UNBOUNDED:
+    {
         cout << "infinite flow" << endl;
+    }
         break;
     default:
         break;
     }
-
-    return 0;
 }

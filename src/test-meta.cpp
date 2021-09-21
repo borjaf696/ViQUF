@@ -191,7 +191,7 @@ void _buildHash(unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_map,
 /*
  * Add frequencies
  */
-bit_vector _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_map,
+bit_vector _add_frequencies(unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_map,
                 char * append_file, size_t total_unitigs, size_t kmerSize
         ,vector<string> & sequence_map, DBG & g, bool full_unitig_map = false)
 {

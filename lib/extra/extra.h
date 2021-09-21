@@ -175,7 +175,7 @@ struct Common {
         if (!full_unitig_map){
             bool reverse = place >= sequence_map.size();
             string seq = sequence_map.at(reverse?place - sequence_map.size():place);
-            char * seq_str = &(seq.c_str())[0];
+            char * seq_str = &seq.c_str()[0];
             seq = ((reverse)?Sequence(seq_str).getRevcomp():seq);
             cout<<" "<<seq<<" ";
         } else {
