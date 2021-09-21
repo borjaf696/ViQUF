@@ -486,7 +486,7 @@ if __name__=='__main__':
         print('*********************************************')
         rG = RepresentantGraph(path, kmerSize, abundanceMin, meta = meta, filtering = filtering, output_prefix = tmpDir+'/unitigs')
     elif type == 'tgs':
-        method = 'lordec'
+        method = 'hifi' if 'hifi' in sys.argv else 'lordec'
         if method == 'consent':
             pathIn = __preprocess_tgs(sys.argv[1])
         elif method == 'lordec':
@@ -496,8 +496,11 @@ if __name__=='__main__':
             # Iterative execution
             technique = sys.argv[5]
             pathIn = __preprocess_tgs(sys.argv[1], sys.argv[2], sys.argv[3], technique=technique)
+            __create_s_pe(pathIn[0])
+        elif method == 'hifi':
+            print('Hifi reads High Fidelity reads - correction there is no need')
+            rG = RepresentantGraph(path, kmerSize, abundanceMin, meta = meta, filtering = filtering, output_prefix = tmpDir+'/unitigs')
         #pathIn = ['/home/bfreire/Gatb-trial/tmpresultsDir_Consent/CONSENT_corrected.fasta']
-        __create_s_pe(pathIn[0])
     elif type == 'amplicons':
         KMER_SIZE = 65
         def _create_amplicons_segments(df_amplicons, reference, reads, output_dir_tmp = 'tmp_amplicons/', reference_file = None):
