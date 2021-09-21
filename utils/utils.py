@@ -218,13 +218,35 @@ class StatsReport:
 from Bio import SearchIO, SeqIO
 from Bio.Seq import Seq
 from Bio.File import as_handle
+from Bio import pairwise2
 from Bio.SearchIO._model import QueryResult, Hit, HSP, HSPFragment
 from Bio.SearchIO._utils import get_processor
+import pandas as pd
 
 class BioUtils:
+    GAP_PENALIZATION = -10
     @staticmethod
     def reverse_complement(chain):
         return str(Seq(chain).reverse_complement())
+
+    @staticmethod
+    def reverse_complement_from_file(file):
+        seqs = SeqIO.parse(file, format = 'fasta')
+        fw_seqs, rc_seqs = [], []
+        for record in seqs:
+            fw_seqs.append(str(record.seq)+'\n')
+            rc_seqs.append(str(record.seq.reverse_complement())+'\n')
+        fw_seqs += rc_seqs
+        seqs = dict()
+        for i, seq in enumerate(fw_seqs):
+            seqs[str(i)] = seq
+        return seqs
+
+    @staticmethod
+    def align_two_seqs(seq_1, seq_2):
+        # -1 missmatch +1 match 0 indels
+        return pairwise2.align.globalms(seq_1, seq_2, 1,-10,BioUtils.GAP_PENALIZATION,0)[0]
+
     @staticmethod
     def identicalClustering(file, program = 'mmseqs', args = ['tmp/clusters','tmp/', '-c','1.0','--min-seq-id',
                                                               '1.0','-v','3','--seq-id-mode','0','--cov-mode','1','--remove-tmp-files'
@@ -233,6 +255,71 @@ class BioUtils:
         cmd = [program,mode,file]+args
         print('Cmd: ', cmd)
         Utils.executecmd(cmd)
+
+    @staticmethod
+    def build_align_index(ref_file, db_prefix, program = 'bowtie2'):
+        if program == 'bowtie2':
+            exe = 'bowtie2-build'
+            cmd = [exe,ref_file, db_prefix,'-q']
+        if program == 'bwa':
+            exe = 'bwa'
+            cmd = [exe,'index', ref_file, '-p', db_prefix]
+        print('Cmd: ',' '.join(cmd))
+        Utils.executecmd(cmd)
+    
+    @staticmethod
+    def align_reads(reads_left, reads_right, index_prefix, output_reads_path, sam_file, format = 'fasta', program = 'bowtie2'):
+        if program == 'bowtie2':
+            exe = 'bowtie2'
+            if format == 'fasta':
+                cmd = [exe,'-x',index_prefix,'-1',reads_left,'-2',reads_right,'--al-conc',output_reads_path,'--quiet','-f', '-S', sam_file]
+            else:
+                cmd = [exe,'-x',index_prefix,'-1',reads_left,'-2',reads_right,'--al-conc',output_reads_path,'--quiet', '.-S', sam_file]
+        print('Cmd: ',' '.join(cmd))
+        Utils.executecmd(cmd)
+
+    @staticmethod
+    def align_single_end_reads(reads, index_prefix, sam_file, format = 'fasta', program = 'bowtie2', permissive = False):
+        if program == 'bowtie2':
+            exe = 'bowtie2'
+            # Soft parameters: --local -D 20 -R 3 -L 3 -N 1 -p 8 --gbar 1 --mp 3
+            if format == 'fasta':
+                cmd = [exe,'-x',index_prefix,'-U',reads,'--quiet','-f', '-S', sam_file,'--no-head']
+                soft_params = []
+                if permissive:
+                    soft_params = ['--local','-D','20','-R','3','-L','3','-N','1','-p','8','--gbar','1','--mp','3']
+                cmd += soft_params
+            else:
+                cmd = [exe,'-x',index_prefix,'-U',reads,'--quiet', '-S', sam_file,'--no-head']
+        if program == 'bwa':
+            # bwa mem testing/hcv_ref.fasta tmp/read_1.fasta tmp/read_2.fasta
+            exe = 'bwa'
+            if format == 'fasta':
+                cmd = [exe,'mem',index_prefix,reads,'-o', sam_file,'-v','1']
+        print('Cmd: ',' '.join(cmd))
+        Utils.executecmd(cmd)
+
+    # Revisar para caso de lecturas no simuladas
+    @staticmethod
+    def write_paired_end_reads_by_place(reads, pos, output_files):
+        reads_left, reads_right = reads
+        output_left, output_right = output_files
+        with open(reads_left,'r+') as f_left, open(output_left,'w+') as f_left_write, open(reads_right, 'r+') as f_right, open(output_right,'w+') as f_right_write:
+            lines_left, lines_right = f_left.readlines(), f_right.readlines()
+            for i in pos:
+                f_left_write.write('>'+str(i)+' 1\n')
+                f_left_write.write(lines_left[2*i+1])
+                f_right_write.write('>'+str(i)+' 2\n')
+                f_right_write.write(lines_right[2*i+1]) 
+    @staticmethod
+    def write_single_end_by_place(reads, pos, output_files):
+        reads_left = reads
+        output_left = output_files
+        with open(reads_left,'r+') as f_left, open(output_left,'w+') as f_left_write:
+            lines_left = f_left.readlines()
+            for i in pos:
+                f_left_write.write('>'+str(i)+' 1\n')
+                f_left_write.write(lines_left[2*i+1])
 
     @staticmethod
     def makedb(infile, name, type = 'blast', dbtype = 'prot'):
@@ -320,6 +407,13 @@ class BioUtils:
             seqs.append(record.seq)
             ids.append(record.id)
         return ids,seqs
+    
+    @staticmethod
+    def readReference(file):
+        reference = ''
+        for record in SeqIO.parse(file, 'fasta'):
+            reference = str(record.seq)
+        return reference
 
     @staticmethod
     def getSeqsByIds(file, ids = None):
@@ -333,6 +427,12 @@ class BioUtils:
                     if id in ids:
                         results[id] = lines[i+1]
         return results
+
+    @staticmethod
+    def getAmplicons(file, format = 'csv'):
+        if format == 'csv':
+            df_amplicons = pd.read_csv(file, sep = ',')
+        return df_amplicons
 
     @staticmethod
     def getIdsFromFa(path):
@@ -353,6 +453,7 @@ class BioUtils:
         sequences = dict()
         with open(path, 'r') as f:
             for r in f.readlines():
+                r = r.strip()
                 if '>' in r:
                     id = r[1:len(r)]
                 else:

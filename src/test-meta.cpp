@@ -97,15 +97,38 @@ void _buildBitMap(bit_vector & bDolars, RankOnes & bDolarRank, SelectOnes  & bDo
 }
 
 /*
+ * Ad-hoc for reading just the unitigs file
+ */ 
+void _read_unitigs_file(char * unitigs, vector<string> & sequence_map)
+{
+    cout << "Reading unitig file..." << endl;
+    cout << "File: " << unitigs << endl;
+    auto start = chrono::steady_clock::now();
+    /*
+     * Sequence Iterator
+     */
+    IBank* inputBank = Bank::open (unitigs);
+    ProgressIterator<Sequence> it (*inputBank, "Iterating sequences");
+    for (it.first(); !it.isDone(); it.next())
+    {
+        Sequence& seq = it.item();
+        sequence_map.push_back(seq.toString());
+    }
+    cout <<"Number of unitigs: "<<sequence_map.size()<<endl;
+    auto end = chrono::steady_clock::now();
+    cout << "Elapsed time in milliseconds (FULL) : "
+         << chrono::duration_cast<chrono::milliseconds>(end - start).count()
+         << " ms" << endl;
+}
+/*
  * Hash version
  */
-
 void _buildHash(unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_map,
         char * unitigs, size_t total_unitigs, size_t kmerSize
-        ,vector<string> & sequence_map, DBG & g)
+        ,vector<string> & sequence_map, DBG & g, bool full_unitig_map = false)
 {
     cout << "Building hash..."<<endl;
-    cout << "File: "<<unitigs<<endl;
+    cout << "File: "<<unitigs<<" Full map: "<<full_unitig_map<<endl;
     auto start = chrono::steady_clock::now();
     size_t num_unitig = 0;
     /*
@@ -123,11 +146,13 @@ void _buildHash(unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_map,
         Sequence& seq = it.item();
         size_t l = seq.getDataSize(), pos = 0;
         g.set_length(num_unitig,l);
-        g.set_length(num_unitig + total_unitigs/2, l);
+        if (!full_unitig_map)
+            g.set_length(num_unitig + total_unitigs/2, l);
         kmerIt.setData(seq.getData());
         sequence_map.push_back(seq.toString());
         if (!g.getNodeState(num_unitig))
         {
+            //cout << "Unitig: "<<num_unitig<<endl;
             num_unitig++;
             continue;
         }
@@ -136,18 +161,21 @@ void _buildHash(unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_map,
             if (pos == l-kmerSize)
             {
                 kmer_map[kmerIt->forward()] = stored_info(pos, l - pos - 1, num_unitig, l);
-                kmer_map[kmerIt->revcomp()] = stored_info(l - pos - 1, pos, total_unitigs / 2 + num_unitig,l);
+                if (!full_unitig_map)
+                    kmer_map[kmerIt->revcomp()] = stored_info(l - pos - 1, pos, total_unitigs / 2 + num_unitig,l);
                 pos++;
             } else if (pos == 0) {
                 if (kmer_map.find(kmerIt->forward()) == kmer_map.end())
                 {
                     kmer_map[kmerIt->forward()] = stored_info(pos, l - pos - 1, num_unitig, l);
-                    kmer_map[kmerIt->revcomp()] = stored_info(l - pos - 1, pos, total_unitigs / 2 + num_unitig,l);
+                    if (!full_unitig_map)
+                        kmer_map[kmerIt->revcomp()] = stored_info(l - pos - 1, pos, total_unitigs / 2 + num_unitig,l);
                     pos++;
                 }
             } else {
                 kmer_map[kmerIt->forward()] = stored_info(pos, l - pos - 1, num_unitig,l);
-                kmer_map[kmerIt->revcomp()] = stored_info(l - pos - 1, pos, total_unitigs / 2 + num_unitig,l);
+                if (!full_unitig_map)
+                    kmer_map[kmerIt->revcomp()] = stored_info(l - pos - 1, pos, total_unitigs / 2 + num_unitig,l);
                 pos++;
             }
         }
@@ -165,7 +193,7 @@ void _buildHash(unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_map,
  */
 bit_vector _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_map,
                 char * append_file, size_t total_unitigs, size_t kmerSize
-        ,vector<string> & sequence_map, DBG & g)
+        ,vector<string> & sequence_map, DBG & g, bool full_unitig_map = false)
 {
     /*
      * Debug options
@@ -220,7 +248,7 @@ bit_vector _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & 
             }
             if (map_iterator_left != kmer_map.end()) {
                 size_t unitig_left = (*map_iterator_left).second._unitig;
-                size_t rev_comp_unitig_left = Common::rev_comp_index(total_unitigs,unitig_left);
+                size_t rev_comp_unitig_left = Common::rev_comp_index(total_unitigs,unitig_left, full_unitig_map);
                 if (cur_unitig_left != NO_NEIGH) {
                     size_t difference = abs((int)unitig_left-(int)cur_unitig_left);
                     if (difference != 0 && difference != (total_unitigs/2)) {
@@ -229,7 +257,7 @@ bit_vector _add_frequencies(const unordered_map<Kmer<SPAN>::Type,stored_info> & 
                                 reads_transitions << "Read included: "<<n_read<<endl;
                             reads_with_transition[n_read] = 1;
                         }
-                        size_t cur_rev_comp = Common::rev_comp_index(total_unitigs, cur_unitig_left);
+                        size_t cur_rev_comp = Common::rev_comp_index(total_unitigs, cur_unitig_left,full_unitig_map);
                         if (f_s_l) {
                             if (forward) {
                                 g.add_read(cur_unitig_left, unitig_left, quantity, true);
@@ -632,7 +660,7 @@ void _traverseReads(char * file_left, char * file_right ,const FMIndex & fm, con
 static vector<size_t> DEFAULT_VECTOR;
 vector<bool> _write_unitigs(vector<vector<size_t>> unitigs
         , string write_path, const vector<string> & sequence_map
-        , size_t num_unitigs_fw,size_t kmer_size, bool force_write = false, vector<size_t> & flows = DEFAULT_VECTOR)
+        , size_t num_unitigs_fw,size_t kmer_size, bool force_write = false, vector<size_t> & flows = DEFAULT_VECTOR, bool full_unitigs_map = false)
 {
     vector<bool> wrote = vector<bool>(unitigs.size(), false);
     cout << "Writing unitigs: "<<unitigs.size()<<endl;
@@ -648,7 +676,7 @@ vector<bool> _write_unitigs(vector<vector<size_t>> unitigs
             //cout << unitig[i]<<" ";
             size_t u = unitig[i];
             unitigs_seq += to_string(u)+"-";
-            string seq = Common::return_unitig(sequence_map, u);
+            string seq = Common::return_unitig(sequence_map, u,full_unitigs_map);
             if (i != 0)
                 seq = seq.substr(kmer_size-1, seq.size() - kmer_size + 1);
             /*char * cstr = new char [seq.length()+1];
@@ -796,56 +824,45 @@ DBG _buildGraph(char * file)
 
 int main (int argc, char* argv[])
 {
-    cout << "Params: unitigFile, dolarsFile (placement),tmp_file, kmerSize, graphFile, unitigsFasta, unitigsfile, appendfile, paired_end (optional) "<<argc<<endl;
-    char * unitigs = argv[1], * dolars = argv[2]
-            , * graphFile = argv[5], * unitigsFa = argv[6], * unitigs_file = argv[7], * append_file = argv[8];
+    cout << "Params: tmp_dir, kmerSize, graphFile, unitigsFasta, unitigsfile, appendfile, paired_end (optional) "<<argc<<endl;
+    char * graphFile = argv[3], * unitigsFa = argv[4], * unitigs_file = argv[5], * append_file = argv[6];
     string paired_end = "";
-    if (argc == 12)
+    if (argc == 10)
     {
-        paired_end = string(argv[9]);
+        paired_end = string(argv[7]);
     }
+    // Parameters read
+    Parameters::get().check_cmd_line(argc, argv);
+    Parameters::get().print_info();
     //Ajustar para pear
     string file_1 = string(""), file_2 = string("");
+    cout << "Paired-end: "<<paired_end<<endl;
     if (paired_end == ""){
-        file_1 =  string(argv[3]) + "/0.fasta";
-        file_2 = string(argv[3]) + "/1.fasta";
+        file_1 =  string(argv[1]) + "/0.fasta";
+        file_2 = string(argv[1]) + "/1.fasta";
     } else {
         auto files = OwnSystem::get_directories(paired_end);
+        cout << "Number of files: "<<files.size()<<endl;
         file_1 = files[0];
         file_2 = files[1];
     }
     cout << "File Left: "<<file_1<<" File Right: "<<file_2<<endl;
     char * file1 = &file_1[0], * file2 = &file_2[0];
-    // Parameters read
-    Parameters::get().check_cmd_line(argc, argv);
-    Parameters::get().print_info();
     size_t kmerSize = Parameters::get().kmerSize;
-    FMIndex fmIndex;
     unordered_map<Kmer<SPAN>::Type,stored_info> kmer_map;
-    bit_vector bDolars;
-    RankOnes bDolarRank;
-    SelectOnes bDolarSelect;
     /*
      * Trial
      */
     vector<string> sequence_map;
     //unordered_map<size_t, string> sequence_map;
     DBG g = _buildGraph(graphFile);
-    /*
-     * Polishing the graph
-     */
-    g.polish();
-    if (VERSION == 1)
+    if (Parameters::get().t_data == "virus")
     {
         /*
-         * FM_Index version - V.0.0.1
+         * Polishing the graph
          */
-        _buildBitMap(bDolars, bDolarRank, bDolarSelect, dolars);
-        _buildFmIndex(fmIndex, unitigs);
-        //_traverseReadsFR(file1, file2, fmIndex,bDolarRank, bDolarSelect, kmerSize, g);
-        //_traverseReadsL(file1, file2, fmIndex,bDolarRank, bDolarSelect, kmerSize, g);
-        _traverseReads(file1, file2, fmIndex,bDolarRank, bDolarSelect, kmerSize, g);
-    } else {
+        if (!Parameters::get().partial_assembly)
+            g.polish();
         /*
          * Hash version - V.0.0.2
          */
@@ -861,6 +878,53 @@ int main (int argc, char* argv[])
         /*cout << "Grafo original"<<endl;
         g.print();*/
         _build_process_cliques(g, sequence_map, unitigs_file, kmerSize,g.vertices());
+        //g.print();
+    } else if (Parameters::get().t_data == "amplicon")
+    {
+        cout << "Creating data structures from: "<<unitigsFa<<endl;
+        _buildHash(kmer_map, unitigsFa, g.vertices(), kmerSize, sequence_map, g, true);
+        //cout << "Adding edge frequencies"<<endl;
+        //_add_frequencies(kmer_map, append_file, g.vertices(), kmerSize, sequence_map, g, true);
+        cout << "Starting amplicons processing"<<endl;
+        // GFA prepolish
+        cout << "Graphs exported as 'txt' and 'gfa'"<<endl;
+        g.export_to_gfa(sequence_map, "graphs/pre_polish_graph_amplicons.gfa", true);
+        // Polishing the graph (regular tips and isolation removal)
+        g.polish();
+        // Correct edges when frequency is missing
+        g.add_synthetic_edge_frequencies();
+        // Test: starting points
+        auto starting_points = g._get_starting_nodes_basic();
+        // Export to gfa
+        // Print post-polish
+        g.print(INF, INF, "graphs/graph_amplicons.txt");
+        cout << "Graphs exported as 'txt' and 'gfa'"<<endl;
+        g.export_to_gfa(sequence_map, "graphs/graph_amplicons.gfa", true);
+        // Add edge_frequencies as vertex frequencies (does it make sense?)
+        // Launching MCP standard processment over the assembly graph
+        priority_queue<pair<size_t,vector<OwnNode_t>>> unitigs_nf_with_freqs = g.solve_std_mcp(sequence_map, true);
+        cout << "End standard mcp - number of contigs "<<unitigs_nf_with_freqs.size()<<endl;
+        // Process unitigs
+        vector<vector<OwnNode_t>> unitigs_nf;
+        vector<size_t> flows;
+        while(!unitigs_nf_with_freqs.empty()) {
+            pair<size_t,vector<OwnNode_t>> u = unitigs_nf_with_freqs.top();
+            unitigs_nf_with_freqs.pop();
+            unitigs_nf.push_back(u.second);
+            flows.push_back(u.first);
+            cout << "Flow: "<<u.first<<endl;
+            for (auto u:u.second)
+                cout << " " << u <<" -> ";
+            cout << endl;
+        }
+        // Reporting unitigs
+        string str_obj_nf("tmp_amplicons/unitigs-ViQUF-nf-std.fasta");
+        char * write_path_nf = &str_obj_nf[0];
+        if (unitigs_nf.size() > 0) {
+            vector<bool> index_unitigs = _write_unitigs(unitigs_nf, write_path_nf, sequence_map, g.vertices(), Parameters::get().kmerSize, false, flows, true);
+            _write_freqs(flows, "tmp_amplicons/flows.csv", index_unitigs);
+        }
+        cout << "Unitigs reported in: " << str_obj_nf <<endl;
+        cout << "Abundances reported in: "<<"tmp_amplicons/flows.csv"<<endl;
     }
-    //g.print();
 }

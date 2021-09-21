@@ -48,6 +48,7 @@ DBG::DBG(char * file)
 
     string line;
     size_t cont = 0;
+    _num_nodes = 0;
     while (std::getline(inFile, line))
     {
         if (cont++ == 0)
@@ -1778,8 +1779,6 @@ size_t DBG::_find_edge(OwnNode_t u1, OwnNode_t u2, bool direction)
             if (_g_in_edges[u2][i] == u1)
                 return i;
         }
-    cout << "U1: " << u1 << " U2: " << u2 << endl;
-    exit(1);
     return NO_NEIGH;
 }
 /*
@@ -2321,7 +2320,7 @@ void DBG::_complete_reach_matrix()
         }
     };
     auto start = chrono::steady_clock::now();
-    cout << "Building reachiability matrix..."<<endl;
+    cout << "Building reachability matrix..."<<endl;
     for (size_t i = 0; i < _num_nodes; ++i)
     {
         bool show = false;
@@ -2408,6 +2407,8 @@ void DBG::subsane(const vector<string> & sequence_map)
     {
         if (!_g_nodes[i]._active)
             continue;
+            if (i == 74)
+                cout << "nodo 74"<<" "<<_g_nodes[i]._abundance<<" "<<_g_edges[i].size()<<endl;
         if (_g_edges[i].size() == 1)
         {
             size_t freq_edge = _g_edges_reads[i][0], neigh = _g_edges[i][0];
@@ -2449,18 +2450,19 @@ void DBG::subsane(const vector<string> & sequence_map)
      */
     polish();
     /*
-    * Getting full reachability matrix - after polishing the matrix
-    */
-    _complete_reach_matrix();
+     * Getting full reachability matrix - after polishing the matrix
+     */
+    if (!(Parameters::get().t_data == "amplicon"))
+        _complete_reach_matrix();
 }
 
-void DBG::export_to_gfa(const vector<string> & sequence_map, string file_name)
+void DBG::export_to_gfa(const vector<string> & sequence_map, string file_name, bool full_unitig_map = false)
 {
     std::ofstream outfile(file_name, std::ofstream::binary);
     outfile << "H\tVN:Z:1.0"<<endl;
     for (auto v:_g_nodes) {
         if (v._active)
-            outfile << "S\t" << v._id << "\t" << Common::return_unitig(sequence_map, v._val) << endl;
+            outfile << "S\t" << v._id << "\t" << Common::return_unitig(sequence_map, v._val, full_unitig_map) << endl;
     }
     size_t id = 0;
     for (auto n: _g_edges)
@@ -4043,7 +4045,7 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::get_min_cost_flow_paths(floa
 /*
  * MCP with no flow in a graph
  * */
-priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<string> & sequence_map)
+priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<string> & sequence_map, bool flag_full_unitigs_map = false)
 {
     /*
      * Debugging files
@@ -4123,7 +4125,7 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
         vector<Graph::Arc> arcs;
         if (Parameters::get().debug)
             nw_file << "Node: "<<i<<endl;
-        float length_unitig = (float) Common::return_unitig(sequence_map, _g_nodes[i]._val).size();
+        float length_unitig = (float) Common::return_unitig(sequence_map, _g_nodes[i]._val, flag_full_unitigs_map).size();
         /*
          * Forward edge
          */
@@ -4136,13 +4138,16 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
             trueArc[a] = true;arcs.push_back(a);lowerMap[a] = 0;
             capacity[a] = _g_edges_reads[i][j]; 
             //weights[a] = (1/((_g_edges_reads[i][j] == 0)?0.001:_g_edges_reads[i][j]));
+            Weight frequency_edge = (_g_edges_reads[i][j] == 0)?0.00001:_g_edges_reads[i][j];
             float weight = 0;
             // Check extreme cases.
             if (_g_edges[i].size() > 1 || in_degree(_g_edges[i][j]) > 1 || in_degree(i) > 1 || in_degree(i) == 0 )
-                weight = 1/_g_edges_reads[i][j];
+                //weight = 1/_g_edges_reads[i][j];
+                weight = 1/frequency_edge;
             // Lets prioritize removing some flow in the end rather than increase on the rest of the strain
             if (out_degree(_g_edges[i][j]) == 0)
-                weight = 2/_g_edges_reads[i][j];
+                //weight = 2/_g_edges_reads[i][j];
+                weight = 2/frequency_edge;
             weights[a] = weight;
             /*
              * Supply map
@@ -4166,11 +4171,14 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
             forward_to_backward[arcs[j]] = a;
             capacity[a] = _g_edges_reads[i][j]; 
             //weights[a] = (1/((_g_edges_reads[i][j] == 0)?0.001:_g_edges_reads[i][j]));
+            Weight frequency_edge = (_g_edges_reads[i][j] == 0)?0.00001:_g_edges_reads[i][j];
             float weight = 0;
             if (_g_edges[i].size() > 1 || in_degree(_g_edges[i][j]) > 1 || in_degree(i) > 1 || in_degree(i) == 0 )
-                weight = 1/_g_edges_reads[i][j];
+                //weight = 1/_g_edges_reads[i][j];
+                weight = 1 / frequency_edge;
             if (out_degree(_g_edges[i][j]) == 0)
-                weight = 2/_g_edges_reads[i][j];
+                //weight = 2/_g_edges_reads[i][j];
+                weight = 2 / frequency_edge;
             weights[a] = weight;
         }
     }
@@ -4254,9 +4262,9 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
                                 selected = a;
                             }
                         }
-                        nw_file << "Selected: "<<translation_map[fn.target(selected)]<<endl;
                         if (max_flow == -INF || translation_map[fn.target(selected)] > (ids - 3))
                             return;
+                        nw_file << "Selected: "<<translation_map[fn.target(selected)]<<endl;
                         if (max_flow != 0)
                             it_max_flow = (max_flow < it_max_flow) ? max_flow : it_max_flow;
                         if (targets_set.find(translation_map[fn.target(selected)]) != targets_set.end())
@@ -4413,7 +4421,7 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
                     if (i_p == cur_path.size() - 1 && solution_node_id_target != (ids-2))
                         real_path.push_back(_g_nodes[solution_node_id_target]._val);
                 }
-                if (flow >= MIN_FLOW_PATH)
+                if (flow >= MIN_FLOW_PATH || (flag_full_unitigs_map & flow > 5))
                 {
                     result_paths.push(pair<size_t, vector < OwnNode_t >>((flow == INF)?_g_nodes[translation_map[fn.source(cur_path[0])]]._abundance:flow, real_path));
                 }

@@ -61,8 +61,12 @@ struct Parameters
                 Parameters::get().greedy = true;
             if (strcmp(argv[i],"--virus") == 0)
                 Parameters::get().t_data = "virus";
+            if (strcmp(argv[i],"--amplicon") == 0)
+                Parameters::get().t_data = "amplicon";
+            if (strcmp(argv[i],"--amplicon") == 0)
+                Parameters::get().partial_assembly = true;
         }
-        Parameters::get().kmerSize = atoi(argv[4]);
+        Parameters::get().kmerSize = atoi(argv[2]);
     }
 
     void print_info()
@@ -81,7 +85,8 @@ struct Parameters
     double num_unique_kmers = 0;
     size_t accumulative_h = 0;
     bool full_info = false, metagenomic = false,
-            postProcess = false, remove_duplicates = true, polish = true, gfa = false, debug = false, greedy = false;
+            postProcess = false, remove_duplicates = true, 
+            polish = true, gfa = false, debug = false, greedy = false, partial_assembly = false;
     size_t kmerSize;
     size_t numThreads;
     bool show = false;
@@ -165,32 +170,47 @@ struct Maths{
 
 
 struct Common {
-    static void display_unitig(const vector<string> & sequence_map, size_t place)
+    static void display_unitig(const vector<string> & sequence_map, size_t place, bool full_unitig_map = false)
     {
-        bool reverse = place >= sequence_map.size();
-        string seq = sequence_map.at(reverse?place - sequence_map.size():place);
-        char * seq_str = &(seq.c_str())[0];
-        seq = ((reverse)?Sequence(seq_str).getRevcomp():seq);
-        cout<<" "<<seq<<" ";
+        if (!full_unitig_map){
+            bool reverse = place >= sequence_map.size();
+            string seq = sequence_map.at(reverse?place - sequence_map.size():place);
+            char * seq_str = &(seq.c_str())[0];
+            seq = ((reverse)?Sequence(seq_str).getRevcomp():seq);
+            cout<<" "<<seq<<" ";
+        } else {
+            cout << sequence_map.at(place) << " ";
+        }
     }
 
-    static string return_unitig(const vector<string> & sequence_map, size_t place)
+    static string return_unitig(const vector<string> & sequence_map, size_t place, bool full_unitig_map = false)
     {
-        bool reverse = (place >= sequence_map.size());
-        string seq = sequence_map.at(reverse?place - sequence_map.size():place);
-        char * seq_str = &(seq.c_str())[0];
-        return ((reverse)?Sequence(seq_str).getRevcomp():seq);
+        if (!full_unitig_map){
+            bool reverse = (place >= sequence_map.size());
+            string seq = sequence_map.at(reverse?place - sequence_map.size():place);
+            char * seq_str = &(seq.c_str())[0];
+            return ((reverse)?Sequence(seq_str).getRevcomp():seq);
+        } else {
+            return sequence_map.at(place);;
+        }
     }
 
-    static size_t return_index(const vector<string> & sequence_map, size_t place)
+    static size_t return_index(const vector<string> & sequence_map, size_t place, bool full_unitig_map = false)
     {
-        bool reverse = (place >= sequence_map.size());
-        return (place >= sequence_map.size())?place - sequence_map.size():place;
+        if (!full_unitig_map){
+            bool reverse = (place >= sequence_map.size());
+            return (place >= sequence_map.size())?place - sequence_map.size():place;
+        } else {
+            return place;
+        }
     }
-    static size_t rev_comp_index(const size_t total_unitigs, size_t place)
+    static size_t rev_comp_index(const size_t total_unitigs, size_t place, bool full_unitig_map = false)
     {
-        return (place >= total_unitigs/2)?place - total_unitigs/2:place + total_unitigs/2;
+        if (!full_unitig_map)
+            return (place >= total_unitigs/2)?place - total_unitigs/2:place + total_unitigs/2;
+        return place;
     }
+
     template<typename T>
     static float sum_vector(const vector<T> & v1)
     {
@@ -209,11 +229,22 @@ struct OwnSystem {
         struct dirent * dp;
         std::vector<string> files;
         while ((dp = readdir(dirp)) != NULL) {
+            if (dp->d_name[0] == '.')
+                continue;
             char * p_1 = strtok(dp->d_name,".");
             char * p_2 = strtok(NULL,".");
-            if (p_2 != NULL)
-                if(strcmp(p_2,extension.c_str())==0)
+            std::cout << p_1 << " "<<p_2<<std::endl;
+            if (p_2 != NULL){
+                if (strcmp(p_2,extension.c_str())==0){
+                    std::cout << "Insert: "<<(path+dp->d_name+".fastq")<<std::endl;
                     files.push_back(path+dp->d_name+".fastq");
+                }
+                std::string extension_fasta = "fasta";
+                if (strcmp(p_2,extension_fasta.c_str())==0){
+                    std::cout << "Insert: "<<(path+dp->d_name+".fasta")<<std::endl;
+                    files.push_back(path+dp->d_name+".fasta");
+                }
+            }
         }
         closedir(dirp);
         std::sort(files.begin(), files.end());

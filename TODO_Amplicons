@@ -1,0 +1,27 @@
+A priori la secuenciación por amplicones es dirigida:
+    * Tenemos un genoma objetivo.
+    * Tenemos unos amplicones conocidos (regiones acotadas del genoma de interés)
+Pasos:
+    * Generar amplicones a partir de una secuencia de referencia.
+    * Mapear las lecturas izquierdas a los amplicones y agruparlas en los distintos amplicones en función de si sus partes izquierda/derehca alinean o no.
+        * ¿Permitimos que una misma lectura pueda alinear en dos amplicones simultáneamente? Si, debería ser residual.
+    * OPCION A: ViQUF en cada uno de las regiones de interés y evaluar que resultados tenemos.
+    * Unión de secciones de contigs de ViQUF:
+        * OPCION A: Obtenemos los contigs con frecuencias ajustadas en el post-process step.
+            * Construímos un grafo de variantes de amplicon.
+            * contigs(amplicon_i) conectan con contigs(amplicon_i+1) si existe un solape entre estos -> O(A*m^2), m número máximo de contigs por amplicon y A número de amplicones
+            * Peso de la arista frecuencia del contig(amplicon_i+1) con el que conectes.
+            * Resolvemos un mcp.
+            * Extraemos caminos.
+        * OPCION B: Reciclamos el APAG construido por amplicon.
+            * Para cada amplicon definimos un grafo.
+            * Unimos los amplicones:
+                * Amplicon i -> Amplicon i+1.
+                * 1 arista por sink en i a source en (i+1), si existe solape un solape de al menos tamaño X (habrá que definirlo) entre dichos nodos.
+                * ¿Valor de la arista? La suma de las frecuencia de salida de la source del Amplicon (i+1).
+            * Resolvemos un mcp.
+Importante paso 1:
+    * Cuando separamos las lecturas por amplicon estamos haciendo tantos alineamientos como amplicones tenemos (buena idea a la hora de paralelizar) lo que es pésimo a nivel de 
+    eficiencia (tiempo, alineas todas las lecturas tantas veces como amplicones hay). Opción B: Usar un alineamiento de todas las lecturas simultáneo y posteriormente parsear el 
+    SAM y separar las lecturas de la manera apropiada.
+
