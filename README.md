@@ -38,10 +38,11 @@ The file **execution-script** contains an example about how to execute the code.
 	* $1 - folder with NGS reads
 	* $2 - kmer size
 	* $3 - --correct/--no-correct to perform correction or not respectively
-	* $4 - --join, has pear been executed? If so --join otherwise --no-join
-* ./bin/output.out tmp/unitigs.FM placements tmp 121 tmp/unitigs.graph tmp/unitigs.unitigs.fa tmp/unitigs-viadbg.fa tmp/Ownlatest/append.fasta $5 $6 --virus
+	* $4 - --joined, has pear been executed? If so --joined otherwise --no-join
+* ./bin/output.out tmp $2 tmp/unitigs.graph tmp/unitigs.unitigs.fa tmp/unitigs-viadbg.fa tmp/Ownlatest/append.fasta $5 $6 --virus
 	* $5 - complete set of reads (it is not mandatory but recommended)
 	* $6 - --debug or not.
 * python scripts/post-process.py
+	* Linear programming algorithm to adjust contigs frequencies, there is not mandatory but suggested.
 
 
