@@ -33,3 +33,10 @@ Todo
 *.fq
 Versions
 third-party/*
+Todo
+quast_log
+send
+meta-data
+execution-script
+-in
+-s

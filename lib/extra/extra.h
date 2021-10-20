@@ -61,8 +61,8 @@ struct Parameters
                 Parameters::get().greedy = true;
             if (strcmp(argv[i],"--virus") == 0)
                 Parameters::get().t_data = "virus";
-            if (strcmp(argv[i],"--amplicon") == 0)
-                Parameters::get().t_data = "amplicon";
+            if (strcmp(argv[i],"--Amplicons") == 0)
+                Parameters::get().t_data = "Amplicons";
             if (strcmp(argv[i],"--amplicon") == 0)
                 Parameters::get().partial_assembly = true;
         }
@@ -128,7 +128,29 @@ struct Op_Container{
  * Maths operations
  */
 struct Maths{
+    static float function_val( unordered_map<size_t,size_t> distribution, 
+        unordered_map<size_t,size_t> survavility,unordered_map<size_t,size_t> length_reads, size_t place, size_t genome_size)
+    {
+        float term1 = place * (survavility[place] - survavility[genome_size - place]);
+        float term2 = 0;
+        for (int i = place; i >= 0; --i)
+            term2 += (length_reads[i]*i);
+        float term3 = (genome_size - place) * (survavility[genome_size - place]);
+        return (term1 + term2 + term3);
+    }
 
+    static float calculate_readjustment_ratio(unordered_map<size_t,size_t> distribution, 
+        unordered_map<size_t,size_t> survavility, unordered_map<size_t,size_t> length_reads, size_t place, size_t genome_size, float average_read_length)
+        {
+            // Avoid divide by 0
+            place = (place == 0)?1:place;
+            size_t place_tmp = place;
+            if (place > genome_size / 2)
+                place_tmp = genome_size - place;
+            float val_max = function_val(distribution, survavility,length_reads, (genome_size - average_read_length), genome_size), 
+                val = function_val(distribution, survavility,length_reads, place_tmp, genome_size);
+            return val_max/val;
+        }
     template<typename T>
     static T my_round(T value, bool up = false)
     {
@@ -165,6 +187,22 @@ struct Maths{
     {
         size_t place = ceil((float) container.size() * 0.5)-1;
         return (container[place] == 0)?(container[place + 1]):container[place];
+    }
+    template<typename T>
+    static T max(vector<T> container)
+    {
+        T maximum = 0;
+        for (auto t:container)
+            maximum = (t > maximum)?t:maximum;
+        return maximum;
+    }
+    template<typename T>
+    static T min(vector<T> container)
+    {
+        T minimum = 9999999999;
+        for (auto t:container)
+            minimum = (t < minimum)?t:minimum;
+        return minimum;
     }
 };
 

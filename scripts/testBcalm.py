@@ -468,6 +468,7 @@ if __name__=='__main__':
         pear, correction, meta, filtering = (sys.argv[6] == '--joined'), (sys.argv[5] == '--correct'), (sys.argv[7] == '--meta'), True
         if len(sys.argv) > 8:
             filtering = not (sys.argv[8] == '--no-filter')
+        if len(sys.argv) > 9:
             output_prefix = sys.argv[9]
             tmpDir = '/'.join(output_prefix.split('/')[:-1])+'/tmp'
         print('*************** Summary *********************')
@@ -486,6 +487,7 @@ if __name__=='__main__':
         print('*********************************************')
         rG = RepresentantGraph(path, kmerSize, abundanceMin, meta = meta, filtering = filtering, output_prefix = tmpDir+'/unitigs')
     elif type == 'tgs':
+        print(sys.argv)
         method = 'hifi' if 'hifi' in sys.argv else 'lordec'
         if method == 'consent':
             pathIn = __preprocess_tgs(sys.argv[1])
@@ -498,8 +500,13 @@ if __name__=='__main__':
             pathIn = __preprocess_tgs(sys.argv[1], sys.argv[2], sys.argv[3], technique=technique)
             __create_s_pe(pathIn[0])
         elif method == 'hifi':
-            print('Hifi reads High Fidelity reads - correction there is no need')
-            rG = RepresentantGraph(path, kmerSize, abundanceMin, meta = meta, filtering = filtering, output_prefix = tmpDir+'/unitigs')
+            print('Hifi reads High Fidelity reads - correction is no need')
+            path, kmerSize, abundanceMin = sys.argv[1], sys.argv[2], sys.argv[3]
+            print('*********************************************')
+            print('Path: ', path)
+            print('Kmer-size: ', kmerSize)
+            print('*********************************************')
+            rG = RepresentantGraph(path, kmerSize, abundanceMin, meta = False, filtering = True, output_prefix = tmpDir+'/unitigs')
         #pathIn = ['/home/bfreire/Gatb-trial/tmpresultsDir_Consent/CONSENT_corrected.fasta']
     elif type == 'amplicons':
         KMER_SIZE = 65

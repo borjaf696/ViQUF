@@ -822,6 +822,78 @@ DBG _buildGraph(char * file)
     return graph;
 }
 
+float _get_reads_length_distribution(DBG & g, char * reads_file,
+    unordered_map<size_t, size_t> & reads_length, unordered_map<size_t,size_t> & reads_distribution, 
+    unordered_map<size_t, size_t> & survival_distribution, string dir_write_path)
+{
+    /*
+     * TODO: Get a better estimation which involves an offset from the beginning and the end.
+     */
+    size_t genome_length_estimation = g.getGenomeLengthEstimation();
+    for (size_t i = 0; i < genome_length_estimation; ++i)
+    {
+        reads_length[i] = 0;
+        reads_distribution[i] = 0;
+        survival_distribution[i] = 0;
+    }
+    /*
+     * Sequence Iterator
+     */
+    IBank* inputBank = Bank::open (reads_file);
+    ProgressIterator<Sequence> it (*inputBank, "Iterating sequences");
+    /*
+     * Kmer models
+     */
+    Kmer<SPAN>::ModelCanonical kmerModel (Parameters::get().kmerSize);
+    Kmer<SPAN>::ModelCanonical::Iterator kmerIt (kmerModel);
+    float average_length = 0, reads = 0;
+    for (it.first(); !it.isDone(); it.next())
+    {
+        Sequence& seq = it.item();
+        size_t l = seq.getDataSize();
+        if (l < genome_length_estimation){
+            reads_length[l] += 1;
+            average_length += (float) l;
+            reads += 1;
+        }
+    }
+    average_length = (average_length / reads);
+    /*
+     * Distribution
+     */
+    size_t cur_sum = 0;
+    for (size_t i = 0; i < genome_length_estimation; ++i)
+    {
+        cur_sum += reads_length[i];
+        reads_distribution[i] = cur_sum;
+    }
+    cur_sum = 0;
+    for (int i = (genome_length_estimation - 1); i >= 0; --i)
+    {
+        cur_sum += reads_length[i];
+        survival_distribution[i] = cur_sum;
+    }
+    if (Parameters::get().debug)
+    {
+        /*
+        * Reporting
+        */
+       cout << "Writing reads freqs and distribution in: "<<(dir_write_path+"/reads_freqs.txt") << " "<<(dir_write_path+"/reads_distribution.txt")<<endl;
+        ofstream outputFile_reads(dir_write_path+"/reads_freqs.txt"), outputFile_dis(dir_write_path+"/reads_distribution.txt"),
+            outputFile_surv(dir_write_path+"/reads_survival.txt");
+        for (size_t i = 0; i < genome_length_estimation; ++i)
+        {
+            outputFile_reads << i<<"\t"<<reads_length[i]<<endl;
+            outputFile_dis << i << "\t"<<reads_distribution[i]<<endl;
+            outputFile_surv << i << "\t"<<survival_distribution[i]<<endl;
+        }
+        outputFile_reads.close();
+        outputFile_dis.close();
+        outputFile_surv.close();
+    }
+    return average_length;
+}
+
 int main (int argc, char* argv[])
 {
     cout << "Params: tmp_dir, kmerSize, graphFile, unitigsFasta, unitigsfile, appendfile, paired_end (optional) "<<argc<<endl;
@@ -846,7 +918,8 @@ int main (int argc, char* argv[])
         file_1 = files[0];
         file_2 = files[1];
     }
-    cout << "File Left: "<<file_1<<" File Right: "<<file_2<<endl;
+    if ((Parameters::get().t_data == "Illumina") || (Parameters::get().t_data == "Amplicons"))
+        cout << "File Left: "<<file_1<<" File Right: "<<file_2<<endl;
     char * file1 = &file_1[0], * file2 = &file_2[0];
     size_t kmerSize = Parameters::get().kmerSize;
     unordered_map<Kmer<SPAN>::Type,stored_info> kmer_map;
@@ -856,7 +929,7 @@ int main (int argc, char* argv[])
     vector<string> sequence_map;
     //unordered_map<size_t, string> sequence_map;
     DBG g = _buildGraph(graphFile);
-    if (Parameters::get().t_data == "virus")
+    if (Parameters::get().t_data != "amplicon")
     {
         /*
          * Polishing the graph
@@ -869,16 +942,53 @@ int main (int argc, char* argv[])
         cout << "Creating hash from: "<<unitigsFa<<endl;
         _buildHash(kmer_map, unitigsFa, g.vertices(), kmerSize, sequence_map, g);
         bit_vector reads_with_transitions = _add_frequencies(kmer_map, append_file, g.vertices(), kmerSize, sequence_map, g);
-        _traverseReadsHash(file1, file2, kmer_map, kmerSize, g, g.vertices(), sequence_map, reads_with_transitions);
-        cout << "Sanity check!"<<endl;
-        vector<vector<size_t>> unitigs = g.export_unitigs(sequence_map);
-        _write_unitigs(unitigs, "tmp/testing_unitigs.fa", sequence_map, g.vertices(),kmerSize, false);
-        if (Parameters::get().debug)
-            g.stats();
-        /*cout << "Grafo original"<<endl;
-        g.print();*/
-        _build_process_cliques(g, sequence_map, unitigs_file, kmerSize,g.vertices());
-        //g.print();
+        if (Parameters::get().t_data == "Illumina"){
+            _traverseReadsHash(file1, file2, kmer_map, kmerSize, g, g.vertices(), sequence_map, reads_with_transitions);
+            cout << "Setting relations according new placements"<<endl;
+            g.set_relations();
+            if (Parameters::get().debug)
+                g.stats();
+            _build_process_cliques(g, sequence_map, unitigs_file, kmerSize,g.vertices());
+        } else {
+            cout << "SingleEnd/TGS/Amplicons analysis: "<<Parameters::get().t_data <<endl;
+            cout << "Assigning positions " << endl;
+            g.assign_positions();
+            /*
+             * Correct unlinked elements
+             */
+            if (Parameters::get().t_data == "Amplicons")
+            {
+                _traverseReadsHash(file1, file2, kmer_map, kmerSize, g, g.vertices(), sequence_map, reads_with_transitions);
+            }
+            if (Parameters::get().debug){
+                g.print(INF, INF, "graphs/tgs_dbg_presubsane.txt");
+                g.export_to_gfa(sequence_map, "graphs/tgs_dbg_presubsane.gfa");
+                cout << "Export original freqs:"<<endl;
+                g.exportFreqMap("graphs/tgs_dbg_freq_map_original.txt");
+            }
+            cout << "Counting read lengths: "<<endl;
+            unordered_map<size_t, size_t> length_reads, reads_distribution, survival_distribution;
+            float average_length = _get_reads_length_distribution(g,append_file,length_reads, reads_distribution, survival_distribution,string(argv[1]));
+            cout << "Set frequencies:" <<endl;
+            g.readjust_frequencies(reads_distribution, survival_distribution, length_reads, average_length);
+            if (Parameters::get().debug) {
+                cout << "Reporting graphs"<<endl;
+                g.exportFreqMap("graphs/dbg_freq_map_postsubsane.txt");
+                g.print(INF, INF, "graphs/dbg_postsubsane.txt");
+                g.export_to_gfa(sequence_map, "graphs/dbg_postsubsane.gfa");
+                cout << "Graphs exported as 'txt' and 'gfa'"<<endl;
+            }
+            if (Parameters::get().t_data == "Amplicons")
+            {
+                if (Parameters::get().debug)
+                    g.stats();
+                _build_process_cliques(g, sequence_map, unitigs_file, kmerSize,g.vertices());
+            } else {
+                cout << "Solve max flow"<<endl;
+                float max_flow = g.to_max_flow_solution();
+                cout << "Max flow: "<<max_flow<<endl;
+            }
+        }
     } else if (Parameters::get().t_data == "amplicon")
     {
         cout << "Creating data structures from: "<<unitigsFa<<endl;
@@ -926,5 +1036,5 @@ int main (int argc, char* argv[])
         }
         cout << "Unitigs reported in: " << str_obj_nf <<endl;
         cout << "Abundances reported in: "<<"tmp_amplicons/flows.csv"<<endl;
-    }
+    } 
 }

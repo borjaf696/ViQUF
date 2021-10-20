@@ -66,6 +66,7 @@ DBG::DBG(char * file)
             _g_edges_reads = vector<vector<OwnNode_t>>(_num_nodes, vector<size_t>());
             _g_in_edges = vector<vector<OwnNode_t>>(_num_nodes, vector<size_t>());
             _reachability = vector<unordered_set<size_t>>(_num_nodes, unordered_set<size_t>());
+            _lastest_relation = vector<OwnNode_t>(_num_nodes, INF);
             _num_nodes = 0;_numedges = 0;
         } else {
             vector <string> results;
@@ -332,6 +333,11 @@ void DBG::set_length(OwnNode_t n, size_t length)
     _g_nodes[n].setLength(length);
 }
 
+size_t DBG::getGenomeLengthEstimation()
+{
+    return _genome_length;
+}
+
 size_t DBG::getLength(OwnNode_t n)
 {
     return _g_nodes[n]._length;
@@ -396,6 +402,18 @@ void DBG::addPair(size_t v, size_t p, bool forward, bool forward_right)
     /*if (v == 0 && p == 3)
         cout <<"V: "<<v<<" P: "<<p<<" Forward: "<<forward<<" Forward_Right: "<<forward_right<<endl;*/
     _g_nodes[v].add_paired_information(p);
+    if (Parameters::get().t_data != "Illumina"){
+        /* 
+        * Possible improvement - max(_g_nodes[v]._placement + inner_size, _g_nodes[i]._placement - distances_traversed)
+        */
+        if (_g_nodes[p]._placement < _g_nodes[v]._placement){
+            _g_nodes[p]._placement = min(_g_nodes[v]._placement, _genome_length - 1 -_g_nodes[p]._length);
+            /*
+            * Trial - add the edge just in case
+            */
+           _lastest_relation[p] = v;
+        }
+    }
 }
 
 size_t DBG::addPair(size_t v, Pairedendinformation_t pairInformation)
@@ -2407,8 +2425,6 @@ void DBG::subsane(const vector<string> & sequence_map)
     {
         if (!_g_nodes[i]._active)
             continue;
-            if (i == 74)
-                cout << "nodo 74"<<" "<<_g_nodes[i]._abundance<<" "<<_g_edges[i].size()<<endl;
         if (_g_edges[i].size() == 1)
         {
             size_t freq_edge = _g_edges_reads[i][0], neigh = _g_edges[i][0];
@@ -2456,6 +2472,19 @@ void DBG::subsane(const vector<string> & sequence_map)
         _complete_reach_matrix();
 }
 
+void DBG::set_relations()
+{
+    for (size_t i = 0; i < _lastest_relation.size(); ++i)
+        if (_lastest_relation[_g_nodes[i]._id] != INF)
+        {
+            OwnNode_t node_src = _lastest_relation[_g_nodes[i]._id];
+            _g_edges[node_src].push_back(_g_nodes[i]._id);
+            _g_in_edges[_g_nodes[i]._id].push_back(node_src);
+            _g_edges_reads[node_src].push_back(_g_nodes[i]._abundance);
+            cout << "Adding edge from: "<<node_src<<" to "<<_g_nodes[i]._id<<endl;
+        }
+}
+
 void DBG::export_to_gfa(const vector<string> & sequence_map, string file_name, bool full_unitig_map)
 {
     std::ofstream outfile(file_name, std::ofstream::binary);
@@ -2476,6 +2505,24 @@ void DBG::export_to_gfa(const vector<string> & sequence_map, string file_name, b
     outfile.close();
 }
 
+void DBG::exportFreqMap(string file_name)
+{
+    vector<size_t> depths = vector<size_t>(_genome_length, 0);
+    for (size_t i = 0; i < _g_nodes.size(); i++)
+    {
+        if (!_g_nodes[i]._active)
+            continue;
+        size_t placement = _g_nodes[i]._placement, length = _g_nodes[i]._length, abundance = _g_nodes[i]._abundance;
+        for (size_t j = 0; j < length; ++j)
+            depths[placement + j] += abundance;
+    }
+    std::ofstream outfile(file_name, std::ofstream::binary);
+    for (size_t i = 0; i < depths.size(); ++i) {
+        outfile << i<<"\t"<<depths[i]<<endl;
+    }
+    outfile.close(); 
+}
+
 void DBG::print(OwnNode_t parent, OwnNode_t son, string file_name)
 {
     if (parent == INF && son == INF) {
@@ -2484,7 +2531,7 @@ void DBG::print(OwnNode_t parent, OwnNode_t son, string file_name)
             if (!v._active)
                 continue;
             outfile << "Node: " << v._id << "/" << v._val;
-            outfile << " Frequency: " << _g_nodes_frequency[v._id] << " - "<<v._abundance<<" - ";
+            outfile << " Frequency: " << _g_nodes_frequency[v._id] << " - "<<v._abundance<<" - "<<v._placement<<" - ";
             outfile << " Number of neighbors: " << _g_edges[v._id].size() << " - ";
             for (size_t i = 0; i < _g_edges[v._id].size();++i)
             {
@@ -2515,7 +2562,7 @@ void DBG::print(OwnNode_t parent, OwnNode_t son, string file_name)
     {
         std::ofstream outfile(file_name, std::ofstream::binary);
         for (auto v:_g_nodes) {
-            outfile << "Node: " << v._id<<":" << v._val << " - "<<v._abundance<<" - ";
+            outfile << "Node: " << v._id<<":" << v._val << " - "<<v._abundance<<" - "<<v._placement<<" - ";
             outfile << " Number of neighbors: " << _g_edges[v._id].size() << " - ";
             for (size_t i = 0; i < _g_edges[v._id].size();++i)
             {
@@ -2531,6 +2578,118 @@ void DBG::print(OwnNode_t parent, OwnNode_t son, string file_name)
             outfile << endl;
         }
         outfile << "End graph"<<endl;
+        outfile.close();
+    }
+}
+void DBG::_estimate_genome_size()
+{
+    vector<DBG::UG_Node> starting_points = _get_starting_nodes_basic();
+    size_t max_length = 0;
+    for (auto sp: starting_points)
+    {
+        size_t cur_length = 0;
+        auto neighs = getNeighbor(sp._id);
+        while (neighs.size() > 0)
+        {
+            cur_length += sp.getLength() - Parameters::get().kmerSize + 1;
+            neighs = getNeighbor(neighs[0]);
+        }
+        cur_length += _g_nodes[neighs[0]]._id;
+        max_length = (cur_length > max_length)?cur_length:max_length;
+    }
+    _genome_length = max_length;
+    cout << "Estimated genome length: "<<_genome_length<<endl;
+}
+void DBG::assign_positions()
+{
+    std::function<void(size_t, OwnNode_t)> __naive_extension 
+                = [this, &__naive_extension] (size_t cur_position, OwnNode_t cur_node){
+                    auto neighs = getNeighbor(cur_node);
+                    if (neighs.size() == 0)
+                    {
+                        if ((cur_position + Parameters::get().kmerSize) > _genome_length){
+                            _genome_length = (cur_position + Parameters::get().kmerSize);
+                        }
+                    }
+                    for (auto neigh: neighs)
+                    {
+                        if (cur_position > _g_nodes[neigh].get_placement())
+                        {
+                            _g_nodes[neigh].set_placement(cur_position);
+                            size_t new_position = cur_position + _g_nodes[neigh].getLength() - Parameters::get().kmerSize + 1;
+                            __naive_extension(new_position, neigh);
+                        }
+                    }
+    };
+    _genome_length = 0;
+    vector<DBG::UG_Node> starting_points = _get_starting_nodes_basic();
+    for (size_t i = 0; i < starting_points.size(); ++i)
+    {
+        OwnNode_t node_id = starting_points[i]._id;
+        _g_nodes[node_id].set_placement(0);
+        size_t cur_position = _g_nodes[node_id].getLength() - Parameters::get().kmerSize;
+        __naive_extension(cur_position, node_id);
+    }
+    cout << "Estimated genome length: "<<_genome_length<<endl;
+}
+
+void DBG::readjust_frequencies(const unordered_map<size_t, size_t> & distribution,const unordered_map<size_t,size_t> & survavility
+    ,const unordered_map<size_t,size_t> & reads_lengths, float average_length_reads)
+{
+    // If method == 1 - distribution method
+    // If method == 2 - algorithmical method
+    size_t method = 2;
+    vector<float> ratios;
+    if (method == 1){
+        for (size_t i = 0; i < _g_nodes.size(); ++i)
+        {
+            //cout <<"I: "<<i<<" "<<_g_nodes[i].get_placement()<<" "<<Maths::function_val(distribution, survavility,reads_lengths, _g_nodes[i].get_placement(), _genome_length)<<" "<<endl;
+            float initial_abundance = _g_nodes[i]._abundance;
+            // We use the end of the unitig, basically 
+            float ratio = Maths::calculate_readjustment_ratio(distribution, survavility, 
+                reads_lengths, _g_nodes[i].get_placement() + _g_nodes[i]._length, _genome_length,average_length_reads);
+            _g_nodes[i].set_abundance(initial_abundance*ratio);
+            for (size_t j = 0; j < _g_edges_reads[i].size(); ++j)
+                _g_edges_reads[i][j] *= ratio;
+        }
+        for (size_t i = 0; i < _genome_length; ++i)
+            ratios.push_back(Maths::calculate_readjustment_ratio(distribution, survavility, reads_lengths, i, _genome_length, average_length_reads));   
+    } else if (method == 2){
+        vector<float> depths = vector<float>(_genome_length, 0);
+        float maximal_depth = 0;
+        for (size_t i = 0; i < _g_nodes.size(); i++)
+        {
+            if (!_g_nodes[i]._active)
+                continue;
+            float placement = _g_nodes[i]._placement, length = _g_nodes[i]._length, abundance = _g_nodes[i]._abundance;
+            for (size_t j = 0; j < length; ++j){
+                depths[placement + j] += (float) abundance;
+                maximal_depth = (depths[placement + j] > maximal_depth)?depths[placement + j]:maximal_depth;
+            }
+        }
+        cout << "Maximal depth: "<<maximal_depth<<endl;
+        // Get ratios for position
+        for (size_t i = 0; i < _genome_length; ++i)
+            ratios.push_back(maximal_depth / depths[i]); 
+        // Change abundance at position p, based on the mean of the ratios in the places it covers.
+        for (size_t i = 0; i < _g_nodes.size(); ++i)
+        {
+            float placement = _g_nodes[i]._placement, length = _g_nodes[i]._length;
+            vector<float> ratio;
+            for (size_t j = 0; j < length; ++j)
+                ratio.push_back(ratios[placement + j]);
+            float ratio_local = Maths::median(ratio);
+            _g_nodes[i]._abundance *= ratio_local;
+            for (size_t j = 0; j < _g_edges_reads[i].size(); ++j)
+                _g_edges_reads[i][j] *= ratio_local;
+        }
+    }
+    if (Parameters::get().debug)
+    {
+        cout << "Exporting ratios in: "<<"graphs/ratios.txt"<<endl;
+        std::ofstream outfile("graphs/ratios.txt", std::ofstream::binary);
+        for (size_t i = 0; i < _genome_length; ++i)
+            outfile <<i<<"\t"<<ratios[i]<<endl;
         outfile.close();
     }
 }
@@ -3801,13 +3960,17 @@ float DBG::to_max_flow_solution()
      * Solution network containers
      */
     Graph::ArcMap<int> capacity(fn);
-    Graph::Arc a = fn.addArc(t,s);
-    capacity[a] = INF;
+    //Graph::Arc a = fn.addArc(t,s);
+    //capacity[a] = INF;
+    cout << "Nodes insertion"<<endl;
     for (size_t i = 0; i < _g_nodes.size(); ++i)
     {
-        Graph::Node n = fn.addNode();
-        translation_map[n] = _g_nodes[i]._id;
-        id_to_fn[_g_nodes[i]._id] = n;
+        if (_g_nodes[i]._active && (!isolated(i) || (_g_nodes[i]._length > (_genome_length/2))))
+        {
+            Graph::Node n = fn.addNode();
+            translation_map[n] = _g_nodes[i]._id;
+            id_to_fn[_g_nodes[i]._id] = n;
+        }
     }
     /*
      * Edges from s to sources and from sinks to t with inf capacity
@@ -3816,28 +3979,39 @@ float DBG::to_max_flow_solution()
     for (auto start_point: starting_points)
     {
         OwnNode_t id = start_point._id;
-        Graph::Arc a = fn.addArc(s, id_to_fn[id]);
-        capacity[a] = INF;
+        if ((!isolated(id) || (_g_nodes[id]._length > (_genome_length/2)))){
+            Graph::Arc a = fn.addArc(s, id_to_fn[id]);
+            capacity[a] = INF;
+        }
     }
     for (auto sink_point: sink_nodes)
     {
         OwnNode_t id = sink_point._id;
-        Graph::Arc a = fn.addArc(id_to_fn[id], t);
-        capacity[a] = INF;
+        if ((!isolated(id) || (_g_nodes[id]._length > (_genome_length/2)))){
+            Graph::Arc a = fn.addArc(id_to_fn[id], t);
+            capacity[a] = INF;
+        }
     }
+    cout << "S and T added"<<endl;
     /*
      * Remaining edges
      */
     size_t node_max = 0, neigh_max = 0, cap = 0;
-    for (size_t i = 0; i < _g_edges.size(); ++i)
+    for (size_t i = 0; i < _g_nodes.size(); ++i)
     {
+        if (!_g_nodes[i]._active || !(!isolated(i) || (_g_nodes[i]._length > (_genome_length/2))))
+            continue;
+        OwnNode_t node_id = _g_nodes[i]._id;            
         for (size_t j = 0; j < _g_edges[i].size(); ++j)
         {
-            Graph::Arc a = fn.addArc(id_to_fn[_g_nodes[i]._id], id_to_fn[_g_edges[i][j]]);
-            capacity[a] = (int) _g_edges_reads[i][j];
+            OwnNode_t neigh_id = _g_edges[node_id][j];
+            if (!_g_nodes[neigh_id]._active)
+                continue;
+            Graph::Arc a = fn.addArc(id_to_fn[node_id], id_to_fn[neigh_id]);
+            capacity[a] = (int) _g_edges_reads[node_id][j];
             if (capacity[a] > cap){
-                node_max = _g_nodes[i]._val;
-                neigh_max = _g_nodes[_g_edges[_g_nodes[i]._id][j]]._val;
+                node_max = _g_nodes[node_id]._val;
+                neigh_max = _g_nodes[neigh_id]._val;
                 cap = capacity[a];
             }
         }
@@ -3846,7 +4020,7 @@ float DBG::to_max_flow_solution()
     /*
      * Preflow
      */
-    Preflow<Graph> preflow (fn, capacity, s, t);
+    EdmondsKarp<Graph> preflow (fn, capacity, s, t);
     Graph::ArcMap<Capacity> flows(fn);
     preflow.run();
 
@@ -3854,6 +4028,17 @@ float DBG::to_max_flow_solution()
      * Flow to paths
      */
     cout << "Maximum flow by edmonds karp: " << preflow.flowValue() << endl;
+    /*
+     * Check the flow network
+     */
+    if (false)
+    {
+        for (Graph::ArcIt a(fn); a != INVALID; ++a)
+        {
+            cout << "Source: "<<translation_map[fn.source(a)]<<" to: "
+                <<translation_map[fn.target(a)]<<" Flow: "<<preflow.flow(a)<<endl;
+        }
+    }
     //cin.get();
     return preflow.flowValue();
 }

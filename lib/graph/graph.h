@@ -181,7 +181,7 @@ class Graph
 {
 public:
     Graph(){}
-    virtual T getNeighbor(T, bool);
+    virtual T Neighbor(T, bool);
     virtual unordered_set<T> getPairedEndInformation(T);
     virtual size_t vertices();
     virtual size_t edges();
@@ -203,35 +203,35 @@ public:
     using NS = NetworkSimplex<SmartDigraph, Capacity, Weight>;
     struct UG_Node
     {
-        UG_Node():_val(INF),_id(INF),_abundance(0)
+        UG_Node():_val(INF),_id(INF),_abundance(0), _placement(0)
         {
             _paired_info = Pairedendinformation_t();
             _map_abundance = unordered_map<OwnNode_t,size_t>();
         }
-        UG_Node(OwnNode_t val):_val(val),_abundance(0),_id(0)
-        {
-            _paired_info = Pairedendinformation_t();
-            _map_abundance = unordered_map<OwnNode_t,size_t>();
-        }
-
-        UG_Node(size_t id, OwnNode_t val):_val(val), _id(id),_abundance(0)
+        UG_Node(OwnNode_t val):_val(val),_abundance(0),_id(0),_placement(0)
         {
             _paired_info = Pairedendinformation_t();
             _map_abundance = unordered_map<OwnNode_t,size_t>();
         }
 
-        UG_Node(size_t id, OwnNode_t val, size_t length):_val(val), _id(id),_length(length),_abundance(0)
+        UG_Node(size_t id, OwnNode_t val):_val(val), _id(id),_abundance(0),_placement(0)
         {
             _paired_info = Pairedendinformation_t();
             _map_abundance = unordered_map<OwnNode_t,size_t>();
         }
 
-        UG_Node(OwnNode_t val, Pairedendinformation_t paired_info):_val(val),_id(0),_abundance(0),_paired_info(paired_info)
+        UG_Node(size_t id, OwnNode_t val, size_t length):_val(val), _id(id),_length(length),_abundance(0), _placement(0)
+        {
+            _paired_info = Pairedendinformation_t();
+            _map_abundance = unordered_map<OwnNode_t,size_t>();
+        }
+
+        UG_Node(OwnNode_t val, Pairedendinformation_t paired_info):_val(val),_id(0),_abundance(0),_paired_info(paired_info),_placement(0)
         {
             _map_abundance = unordered_map<OwnNode_t,size_t>();
         }
 
-        UG_Node(OwnNode_t val, Pairedendinformation_t paired_info, size_t length):_val(val),_id(0),_length(length),_abundance(0),_paired_info(paired_info)
+        UG_Node(OwnNode_t val, Pairedendinformation_t paired_info, size_t length):_val(val),_id(0),_length(length),_abundance(0),_paired_info(paired_info),_placement(0)
         {
             _map_abundance = unordered_map<OwnNode_t,size_t>();
         }
@@ -298,7 +298,14 @@ public:
         {
             return _paired_info;
         }
-
+        size_t get_placement()
+        {
+            return _placement;
+        }
+        void set_placement(size_t placement)
+        {
+            _placement = (placement > _placement)?placement:_placement;
+        }
         void set_abundance(float abundance)
         {
             _abundance = abundance;
@@ -313,7 +320,7 @@ public:
 
         void export_info(std::ofstream & outfile)
         {
-           outfile << "Val: "<<_val<<" Id: "<<_id<<" Abundance: "<<_abundance<<endl;
+           outfile << "Val: "<<_val<<" Id: "<<_id<<" Abundance: "<<_abundance<<" Placement: "<<_placement<<endl;
             for (auto i: _paired_info)
                 outfile << " "<<i;
             outfile << endl; 
@@ -425,7 +432,7 @@ public:
         }
 
         OwnNode_t _val;
-        size_t _id, _length;
+        size_t _id, _length, _placement;
         float _abundance;
         bool _active = true;
         Pairedendinformation_t _paired_info;
@@ -438,10 +445,12 @@ public:
     DBG():_num_nodes(0),_numedges(0){}
     DBG(char *);
     DBG(const DBG&);
-    void polish(bool = false);
     /*
      * Methods modify graph
      */
+    void polish(bool = false);
+    void assign_positions();
+    void readjust_frequencies(const unordered_map<size_t, size_t> &,const unordered_map<size_t,size_t> &,const unordered_map<size_t,size_t> &, float);
     void addNode(UG_Node node, bool show = false)
     {
         vector<OwnNode_t> index_1 = _get_posible_pos(node._val);
@@ -604,9 +613,11 @@ public:
     void add_read(OwnNode_t, OwnNode_t, size_t, bool);
     void set_length(OwnNode_t, size_t);
     void subsane(const vector<string>&);
+    void set_relations();
     /*
      * PairedEnd
      */
+    size_t getGenomeLengthEstimation();
     size_t getLength(OwnNode_t);
     float getFreqNode(OwnNode_t);
     float getAbundance(OwnNode_t);
@@ -618,6 +629,11 @@ public:
     /*
      * Basics
      */
+    bool isolated(OwnNode_t _id)
+    {
+        size_t id = _g_nodes[_id]._id;
+        return ((_g_edges[id].size() == 0)& (_g_in_edges[id].size() == 0));
+    }
     size_t vertices(bool = false);
     size_t edges();
     size_t out_degree(OwnNode_t);
@@ -641,6 +657,7 @@ public:
     string toString();
     void stats();
     void print(OwnNode_t = INF, OwnNode_t = INF, string = "graphs/adbg.txt");
+    void exportFreqMap(string = "graphs/freqs_place.txt");
     void export_to_gfa(const vector<string> &, string = "graphs/adbg.gfa", bool = false);
     void post_process_pairs(const vector<string> &);
     /*
@@ -700,12 +717,20 @@ private:
     vector<UG_Node> _get_potential_sinks_basic();
     void _extension_basic(vector<vector<vector<OwnNode_t>>>&,vector<vector<vector<OwnNode_t>>>&, UG_Node, vector<bool>&,std::ofstream&,
             size_t &,const vector <string> & , bool = true, OwnNode_t = INF);
+    /*
+     * Estimation genome size:
+     */
+    void _estimate_genome_size();
+    /*
+     * Variables
+     */
     vector<UG_Node> _g_nodes;
     vector<float>_g_nodes_frequency;
     vector<vector<OwnNode_t>> _g_edges, _g_in_edges;
     vector<vector<size_t>> _g_edges_reads;
     vector<unordered_set<OwnNode_t>> _reachability;
-    size_t _numedges, _num_nodes, _min_abundance;
+    vector<OwnNode_t> _lastest_relation;
+    size_t _numedges, _num_nodes, _min_abundance, _genome_length;
     unordered_map<OwnNode_t, vector<OwnNode_t>> _map_pos;
     /*
      * Split mapping
