@@ -61,6 +61,8 @@ struct Parameters
                 Parameters::get().greedy = true;
             if (strcmp(argv[i],"--virus") == 0)
                 Parameters::get().t_data = "virus";
+            if (strcmp(argv[i],"--Illumina") == 0)
+                Parameters::get().t_data = "Illumina";
             if (strcmp(argv[i],"--Amplicons") == 0)
                 Parameters::get().t_data = "Amplicons";
             if (strcmp(argv[i],"--amplicon") == 0)

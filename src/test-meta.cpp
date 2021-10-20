@@ -944,8 +944,6 @@ int main (int argc, char* argv[])
         bit_vector reads_with_transitions = _add_frequencies(kmer_map, append_file, g.vertices(), kmerSize, sequence_map, g);
         if (Parameters::get().t_data == "Illumina"){
             _traverseReadsHash(file1, file2, kmer_map, kmerSize, g, g.vertices(), sequence_map, reads_with_transitions);
-            cout << "Setting relations according new placements"<<endl;
-            g.set_relations();
             if (Parameters::get().debug)
                 g.stats();
             _build_process_cliques(g, sequence_map, unitigs_file, kmerSize,g.vertices());
@@ -959,6 +957,8 @@ int main (int argc, char* argv[])
             if (Parameters::get().t_data == "Amplicons")
             {
                 _traverseReadsHash(file1, file2, kmer_map, kmerSize, g, g.vertices(), sequence_map, reads_with_transitions);
+                cout << "Setting relations according new placements"<<endl;
+                g.set_relations();
             }
             if (Parameters::get().debug){
                 g.print(INF, INF, "graphs/tgs_dbg_presubsane.txt");
