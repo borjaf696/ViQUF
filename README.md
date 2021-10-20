@@ -30,6 +30,12 @@ The overall workflow is as follows:
 * quast 4.3 or quast 5.0.1 to evaluate the results
 * Compile: make clean && make
 
+## Updates (20/10/2021)
+
+* Amplicons - new approach to deal with amplicons (On progress).
+* Third Generation Sequencing - new approaches to deal with this type of data. Right now, we are able to infer a valid flow from the data (all test over simlord high depth simulated data).
+	* TODO: Apply Flow decomposition with subpath constraints.
+
 ## Command line standard:
 
 The file **execution-script** contains an example about how to execute the code.
