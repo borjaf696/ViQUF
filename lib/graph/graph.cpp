@@ -375,7 +375,7 @@ vector<size_t> DBG::getNeighbor(size_t v , bool dir, size_t filter)
 
 float DBG::getFreqNode(OwnNode_t node)
 {
-    return _g_nodes[node]._abundance;//_g_nodes_frequency[node];
+    return _g_nodes[node]._abundance;
 }
 
 unordered_set<size_t> DBG::getPairedEndInformation(size_t v)
@@ -1821,8 +1821,6 @@ void DBG::add_read(OwnNode_t u1, OwnNode_t u2, size_t quantity, bool direction)
         /*if (u1 == 0)
             cout << "Parent: "<<u1<<" Son: "<<u2<<" frequency: "<<_g_edges_reads[u1][pos]<<endl;*/
         _g_edges_reads[u1][pos]++;
-        /*if (_g_edges_reads[u1][pos] > _g_nodes_frequency[u1])
-            _g_nodes_frequency[u1] = _g_edges_reads[u1][pos];*/
         if (_g_edges_reads[u1][pos] > _g_nodes_frequency[u2])
             _g_nodes_frequency[u2] = _g_edges_reads[u1][pos];
     }
@@ -2438,10 +2436,10 @@ void DBG::subsane(const vector<string> & sequence_map)
     for (size_t i = 0; i < _g_edges.size(); ++i)
     {
         bool show = false;
-        float node_freq = _g_nodes[i]._abundance;//_g_nodes_frequency[i];
+        float node_freq = _g_nodes[i]._abundance;
         for (size_t j = 0; j < _g_edges[i].size(); ++j)
         {
-            float neigh_freq = _g_nodes[_g_edges[i][j]]._abundance;//_g_nodes_frequency[_g_edges[i][j]];
+            float neigh_freq = _g_nodes[_g_edges[i][j]]._abundance;
             // ¿Max o min?
             //node_freq = max(neigh_freq, node_freq);
             if (show)
@@ -2474,15 +2472,19 @@ void DBG::subsane(const vector<string> & sequence_map)
 
 void DBG::set_relations()
 {
-    for (size_t i = 0; i < _lastest_relation.size(); ++i)
-        if (_lastest_relation[_g_nodes[i]._id] != INF)
-        {
-            OwnNode_t node_src = _lastest_relation[_g_nodes[i]._id];
-            _g_edges[node_src].push_back(_g_nodes[i]._id);
-            _g_in_edges[_g_nodes[i]._id].push_back(node_src);
-            _g_edges_reads[node_src].push_back(_g_nodes[i]._abundance);
-            cout << "Adding edge from: "<<node_src<<" to "<<_g_nodes[i]._id<<endl;
+    for (size_t i = 0; i < _lastest_relation.size(); ++i){
+        if (_g_nodes[i]._active){
+            if (_lastest_relation[_g_nodes[i]._id] != INF)
+            {
+                OwnNode_t node_src = _lastest_relation[_g_nodes[i]._id];
+                /*_g_edges[node_src].push_back(_g_nodes[i]._id);
+                _g_in_edges[_g_nodes[i]._id].push_back(node_src);
+                _g_edges_reads[node_src].push_back(_g_nodes[i]._abundance);
+                _g_nodes[node_src]._abundance += _g_nodes[i]._abundance;*/
+                cout << "Adding edge from: "<<node_src<<" to "<<_g_nodes[i]._id<<" Placement: "<<_g_nodes[node_src]._placement<<endl;
+            }
         }
+    }
 }
 
 void DBG::export_to_gfa(const vector<string> & sequence_map, string file_name, bool full_unitig_map)

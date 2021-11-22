@@ -2,8 +2,8 @@
 import sys, os
 sys.path.append('')
 import subprocess
-import altair as alt
 import pandas as pd
+import altair as alt
 import progressbar
 from shutil import copyfile
 from Bio.Seq import Seq
@@ -464,6 +464,7 @@ if __name__=='__main__':
         return Utils.append_files(files, outputFile)
 
     type = sys.argv[4]
+    print(sys.argv)
     if type == 'ngs':
         pear, correction, meta, filtering = (sys.argv[6] == '--joined'), (sys.argv[5] == '--correct'), (sys.argv[7] == '--meta'), True
         if len(sys.argv) > 8:
@@ -477,7 +478,7 @@ if __name__=='__main__':
         print('Meta: ', meta)
         print('Temporary directory: ', tmpDir)
         print('Reads directory: ', sys.argv[1])
-        print('*********************************************')
+        print('********************************************<*')
         pathIn = __preprocess_karect(sys.argv[1], correction)
         path, kmerSize, abundanceMin = pathIn[0], sys.argv[2], sys.argv[3]
         print('*********************************************')

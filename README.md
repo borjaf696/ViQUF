@@ -28,7 +28,17 @@ The overall workflow is as follows:
 * SDSL
 * BCALM
 * quast 4.3 or quast 5.0.1 to evaluate the results
+* gatb-library:
+	* cd lib/ && rm -r gatb-core
+	* git clone https://github.com/GATB/gatb-core.git
+	* follow the instructions in: https://github.com/GATB/gatb-core
+* lemon 1.3.1:
+	* cd ..
+	* wget http://lemon.cs.elte.hu/pub/sources/lemon-1.3.1.tar.gz
+	* tar xvf lemon-1.3.1.tar.gz
+	* follow instructions in https://lemon.cs.elte.hu/trac/lemon/wiki/InstallLinux (IMPORTANT: install lemon in /usr/local otherwise the Makefile will not get the lemon package)
 * Compile: make clean && make
+
 
 ## Updates (20/10/2021)
 

@@ -1,7 +1,7 @@
 import os, subprocess
-import altair as alt
 import pandas as pd
 import numpy as np
+import altair as alt
 import shutil
 from shutil import copyfile
 
