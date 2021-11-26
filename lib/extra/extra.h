@@ -65,6 +65,8 @@ struct Parameters
                 Parameters::get().t_data = "Illumina";
             if (strcmp(argv[i],"--Amplicons") == 0)
                 Parameters::get().t_data = "Amplicons";
+            if (strcmp(argv[i],"--TGS") == 0)
+                Parameters::get().t_data = "TGS";
             if (strcmp(argv[i],"--amplicon") == 0)
                 Parameters::get().partial_assembly = true;
         }

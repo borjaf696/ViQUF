@@ -614,6 +614,7 @@ public:
     void set_length(OwnNode_t, size_t);
     void subsane(const vector<string>&);
     void set_relations();
+    void get_largest_cc();
     /*
      * PairedEnd
      */
@@ -647,6 +648,13 @@ public:
         return _g_nodes[i]._active;
     }
     /*
+     * Subpath constraints adding
+     */
+    void adding_sc(vector<OwnNode_t> subpath_constraints)
+    {
+        _subpath_constraints.push_back(subpath_constraints);
+    }
+    /*
      * Unitigs
      */
     vector<vector<OwnNode_t>> export_unitigs(const vector<string> &, bool = false);
@@ -660,6 +668,20 @@ public:
     void exportFreqMap(string = "graphs/freqs_place.txt");
     void export_to_gfa(const vector<string> &, string = "graphs/adbg.gfa", bool = false);
     void post_process_pairs(const vector<string> &);
+    void export_graphs_sc();
+    void print_check_sc()
+    {
+        for (auto subpath_constraint:_subpath_constraints)
+        {
+            for (size_t i = 0; i < subpath_constraint.size() - 1; ++i){
+                OwnNode_t node_left_id = subpath_constraint[i], node_right_id = subpath_constraint[i + 1];
+                if (find(_g_edges[node_left_id].begin(), _g_edges[node_left_id].end(), node_right_id) == _g_edges[node_left_id].end())
+                {
+                    cout << "Fail link between: "<<node_left_id<<" "<<node_right_id<<endl;
+                }
+            }
+        }
+    }
     /*
      * Solve Flow-problems
      */
@@ -706,6 +728,7 @@ private:
     bool _reach_e(OwnNode_t, OwnNode_t);
     bool _reach(OwnNode_t, OwnNode_t);
     void _print_reachability();
+    void _set_edge_frequency(OwnNode_t, OwnNode_t, float);
     /*
      * Extension
      */
@@ -732,6 +755,10 @@ private:
     vector<OwnNode_t> _lastest_relation;
     size_t _numedges, _num_nodes, _min_abundance, _genome_length;
     unordered_map<OwnNode_t, vector<OwnNode_t>> _map_pos;
+    /*
+     * Subpath constraints
+     */
+    vector<vector<OwnNode_t>> _subpath_constraints;
     /*
      * Split mapping
      */

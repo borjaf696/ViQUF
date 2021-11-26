@@ -238,6 +238,7 @@ bit_vector _add_frequencies(unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_m
         size_t l = seq.getDataSize(), pos = 0;
         //cout <<"Sequence: "<<seq.toString()<<" "<<n_read<<endl;
         kmerIt.setData(seq.getData());
+        vector<OwnNode_t> cur_subpath_constraint;
         for (kmerIt.first(); !kmerIt.isDone();kmerIt.next()) {
             bool forward = true;
             unordered_map<Kmer<SPAN>::Type, stored_info>::const_iterator map_iterator_left = kmer_map.find(kmerIt->forward());
@@ -252,6 +253,7 @@ bit_vector _add_frequencies(unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_m
                 if (cur_unitig_left != NO_NEIGH) {
                     size_t difference = abs((int)unitig_left-(int)cur_unitig_left);
                     if (difference != 0 && difference != (total_unitigs/2)) {
+                        cur_subpath_constraint.push_back(unitig_left);
                         if (!reads_with_transition[n_read]) {
                             if (Parameters::get().debug)
                                 reads_transitions << "Read included: "<<n_read<<endl;
@@ -286,11 +288,15 @@ bit_vector _add_frequencies(unordered_map<Kmer<SPAN>::Type,stored_info> & kmer_m
                     cur_unitig_left = unitig_left;
                     f_s_l = forward;
                     quantity = 1;
+                    cur_subpath_constraint.push_back(unitig_left);
                 }
             } else {
+                if (cur_subpath_constraint.size() > 2)
+                    g.adding_sc(cur_subpath_constraint);
                 cur_unitig_left = NO_NEIGH;
                 quantity = 1;
                 f_s_l = true;
+                cur_subpath_constraint.clear();
             }
         }
         n_read++;
@@ -718,17 +724,18 @@ void _write_freqs(vector<size_t> unitig_flow, string write_path, vector<bool> in
     }
     outputFile.close();
 }
+
+void export_and_write_unitigs(DBG & g, const vector<string> & sequence_map,
+        char * write_path, size_t kmer_size, size_t num_unitigs)
+        {
+            cout << "Network flow solution + unitigs exporting"<<endl;
+        }
+
 void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
         char * write_path, size_t kmer_size, size_t num_unitigs)
 {
     cout << "Processing cliques from DBG... This will take a while!" <<endl;
     DBG apdbg;
-    g.build_process_cliques(apdbg, sequence_map, num_unitigs);
-    if (Parameters::get().debug) {
-        cout << "Exporting APdBG" << endl;
-        apdbg.print(1, INF);
-        apdbg.export_to_gfa(sequence_map);
-    }
     /*
      * Post-process unitigs
      */
@@ -757,9 +764,26 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
     /*
      * Standard Approach
      */
-    cout << "MCP standard approach"<<endl;
-    priority_queue<pair<size_t,vector<OwnNode_t>>> unitigs_nf_with_freqs_2 = apdbg.solve_std_mcp(sequence_map);
-    cout << "End std_mcp"<<endl;
+    priority_queue<pair<size_t,vector<OwnNode_t>>> unitigs_nf_with_freqs_2;
+    if (Parameters::get().t_data == "Illumina")
+    {
+        g.build_process_cliques(apdbg, sequence_map, num_unitigs);
+        if (Parameters::get().debug) {
+            cout << "Exporting APdBG" << endl;
+            apdbg.print(1, INF);
+            apdbg.export_to_gfa(sequence_map);
+        }
+        cout << "MCP standard approach"<<endl;
+        unitigs_nf_with_freqs_2 = apdbg.solve_std_mcp(sequence_map);
+        cout << "End std_mcp"<<endl;
+    } else {
+        cout << "Solve max flow"<<endl;
+        float max_flow = g.to_max_flow_solution();
+        cout << "Max flow: "<<max_flow<<endl;
+        cout << "Translate the flow into paths: "<<endl;
+        unitigs_nf_with_freqs_2 = g.get_min_cost_flow_paths(max_flow);
+        cout << "Number of paths: "<<unitigs_nf_with_freqs_2.size()<<endl;
+    }
     vector<vector<OwnNode_t>> unitigs_nf_2;
     vector<size_t> flows_2;
     while(!unitigs_nf_with_freqs_2.empty()) {
@@ -942,6 +966,8 @@ int main (int argc, char* argv[])
         cout << "Creating hash from: "<<unitigsFa<<endl;
         _buildHash(kmer_map, unitigsFa, g.vertices(), kmerSize, sequence_map, g);
         bit_vector reads_with_transitions = _add_frequencies(kmer_map, append_file, g.vertices(), kmerSize, sequence_map, g);
+        cout << "Checking links sc"<<endl;
+        g.print_check_sc();
         if (Parameters::get().t_data == "Illumina"){
             _traverseReadsHash(file1, file2, kmer_map, kmerSize, g, g.vertices(), sequence_map, reads_with_transitions);
             if (Parameters::get().debug)
@@ -950,6 +976,10 @@ int main (int argc, char* argv[])
         } else {
             cout << "SingleEnd/TGS/Amplicons analysis: "<<Parameters::get().t_data <<endl;
             cout << "Assigning positions " << endl;
+            /*
+             * Deactivete reverse_complement (PENDING)
+             */
+
             g.assign_positions();
             /*
              * Correct unlinked elements
@@ -971,6 +1001,11 @@ int main (int argc, char* argv[])
             float average_length = _get_reads_length_distribution(g,append_file,length_reads, reads_distribution, survival_distribution,string(argv[1]));
             cout << "Set frequencies:" <<endl;
             g.readjust_frequencies(reads_distribution, survival_distribution, length_reads, average_length);
+            if (Parameters::get().t_data == "TGS")
+            {
+                cout << "Counting ccs"<<endl;
+                g.get_largest_cc();
+            }
             if (Parameters::get().debug) {
                 cout << "Reporting graphs"<<endl;
                 g.exportFreqMap("graphs/dbg_freq_map_postsubsane.txt");
@@ -984,10 +1019,11 @@ int main (int argc, char* argv[])
                     g.stats();
                 _build_process_cliques(g, sequence_map, unitigs_file, kmerSize,g.vertices());
             } else {
-                cout << "Solve max flow"<<endl;
-                float max_flow = g.to_max_flow_solution();
-                cout << "Max flow: "<<max_flow<<endl;
+                _build_process_cliques(g, sequence_map, unitigs_file, kmerSize,g.vertices());
             }
+            cout << "Exporting graph in sc"<<endl;
+            g.export_graphs_sc();
+            cout <<"ViQUF end for data type "<<Parameters::get().t_data<<"!"<<endl;
         }
     } else if (Parameters::get().t_data == "amplicon")
     {

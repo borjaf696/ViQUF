@@ -1715,6 +1715,87 @@ void DBG::post_process_pairs(const vector<string> & sequence_map)
     _get_internal_stats(sequence_map);
 }
 
+/*
+ * Export graphs sc_format
+ */
+void DBG::export_graphs_sc()
+{
+    size_t number_of_actives_nodes = 0;
+    for (auto node:_g_nodes)
+        if (node._active)
+            number_of_actives_nodes++;
+    std::ofstream fd_standard, fd_inexact, fdsc;
+    fd_standard.open("graphs_sc/standard.graph", std::ofstream::out);
+    fd_inexact.open("graphs_sc/fd_inexact.graph", std::ofstream::out);
+    fdsc.open("graphs_sc/fdsc.graph", std::ofstream::out);
+    fd_standard << "# graph number 1 name standard_1"<<endl;
+    fd_standard << number_of_actives_nodes<<endl;
+    fd_inexact << "# graph number 1 name inexact"<<endl;
+    fd_inexact << number_of_actives_nodes<<endl;
+    fdsc << "# graph number 1 name fdsc"<<endl;
+    fdsc << number_of_actives_nodes << endl;
+    int min_node_active = 9999999, max_node_active = -99999999;
+    for (int i = 0; i < _g_edges.size(); ++i)
+    {
+        if (_g_nodes[i]._active)
+        {
+            min_node_active = (i < min_node_active)?i:min_node_active;
+            max_node_active = (i > max_node_active)?i:max_node_active;
+            for (size_t j = 0; j < _g_edges[i].size(); ++j)
+            {
+                float capacity = (float)_g_edges_reads[i][j];
+                float upper_bound = capacity*1.05, lower_bound = capacity*0.95;
+                fd_standard << _g_nodes[i]._id <<" "<<_g_nodes[_g_edges[i][j]]._id<<" "<<capacity<<endl;
+                fd_inexact << _g_nodes[i]._id <<" "<<_g_nodes[_g_edges[i][j]]._id<<" "<<lower_bound<<" "<<upper_bound<<endl;
+                fdsc << _g_nodes[i]._id <<" "<<_g_nodes[_g_edges[i][j]]._id<<" "<<capacity<<endl;
+            }
+        }
+    }
+    int source_node = min_node_active - 1, sink_node = max_node_active + 1;
+    auto sources = _get_starting_nodes_basic(), sinks = _get_potential_sinks_basic();
+    // From global source to graph sources
+    for (auto s:sources)
+    {
+        float capacity = 0;
+        for (auto flow: _g_edges_reads[s._id])
+            capacity += flow;
+        float upper_bound = capacity*1.05, lower_bound = capacity*0.95;
+        fd_standard << source_node <<" "<<_g_nodes[s._id]._id<<" "<<capacity<<endl;
+        fd_inexact << source_node <<" "<<_g_nodes[s._id]._id<<" "<<lower_bound<<" "<<upper_bound<<endl;
+        fdsc << source_node <<" "<<_g_nodes[s._id]._id<<" "<<capacity<<endl;
+    }
+    // From graph sinks to global sink
+    for (auto s:sinks)
+    {
+        float capacity = 0;
+        for (size_t i = 0; i < _g_in_edges[s._id].size(); ++i)
+        {
+            OwnNode_t parent = _g_in_edges[s._id][i];
+            for (size_t j = 0; j < _g_edges[parent].size(); ++j)
+            {
+                if (_g_edges[parent][j] == s._id)
+                    capacity += _g_edges_reads[parent][j];
+            }
+        }
+        float upper_bound = capacity*1.05, lower_bound = capacity*0.95;
+        fd_standard << _g_nodes[s._id]._id <<" "<<sink_node<<" "<<capacity<<endl;
+        fd_inexact << _g_nodes[s._id]._id <<" "<<sink_node<<" "<<lower_bound<<" "<<upper_bound<<endl;
+        fdsc << _g_nodes[s._id]._id << " "<<sink_node<<" "<<capacity<<endl;
+    }
+    fdsc << "# subpaths"<<endl;
+    for (auto subpath_constraint:_subpath_constraints)
+    {
+        for (size_t i = 0; i < subpath_constraint.size(); ++i)
+        {
+            fdsc << subpath_constraint[i]<<" ";
+        }
+        fdsc << "1.0"<<endl;
+    }
+    fd_standard.close();
+    fd_inexact.close();
+    fdsc.close();
+}
+
 void DBG::_get_internal_stats(const vector<string> & sequence_map)
 {
     vector<size_t> abundances_v, paired_freqs;
@@ -2485,6 +2566,91 @@ void DBG::set_relations()
             }
         }
     }
+}
+
+/*
+ * Deactivate nodes that are not in the main CC
+ */
+void DBG::get_largest_cc()
+{
+    unordered_map<size_t, size_t> colors_map;
+    vector<UG_Node> start_points = _get_starting_nodes_basic();
+    size_t cur_color = 0;
+    stack<OwnNode_t> colors_stack, nodes_stack;
+    vector<bool> checked(_g_nodes.size(), false);
+    vector<int> colors_assigned(_g_nodes.size(), -1);
+    // Add the first start point to the stack and color
+    size_t starts_iterator = 0;
+    nodes_stack.push(start_points[starts_iterator++]._id);
+    colors_stack.push(cur_color);
+    while (!nodes_stack.empty())  
+    {
+        OwnNode_t current_node = nodes_stack.top();
+        size_t current_color = colors_stack.top();
+        nodes_stack.pop();
+        colors_stack.pop();
+        checked[current_node] = true;
+        colors_assigned[current_node] = current_color;
+        for(auto neigh:getNeighbor(current_node))
+        {
+            if (!checked[neigh]){
+                nodes_stack.push(neigh);
+                colors_stack.push(current_color);
+            }
+        }
+        for (auto neigh:getNeighbor(current_node, false))
+        {
+            if (!checked[neigh]){
+                nodes_stack.push(neigh);
+                colors_stack.push(current_color);
+            }   
+        }
+        if (nodes_stack.empty()){
+            for (size_t i = starts_iterator; i < start_points.size(); ++i)
+            {
+                if (!checked[start_points[i]._id])
+                {
+                    starts_iterator = i;
+                    nodes_stack.push(start_points[i]._id);
+                    colors_stack.push(++cur_color);
+                    break;
+                }
+            }
+        }
+    }
+    cout << "Current connected components: "<<cur_color<<endl;
+    vector<size_t> num_cases_color(cur_color+1, 0);
+    size_t max_color = -1, max_cases = 0;
+    for (size_t i = 0; i < colors_assigned.size(); i++){
+        int color = colors_assigned[i];
+        if (i == 500)
+            cout << "Color asignado: "<<i<<" "<<color<<endl;
+        if (color >= 0){
+            num_cases_color[color] += 1;
+            if (num_cases_color[color] > max_cases)
+            {
+                max_cases = num_cases_color[color];
+                max_color = color;
+            }
+        }
+    }
+    cout << "Color: "<<max_color<<" Number cases: "<<max_cases<<endl;
+    for (size_t i = 0; i < colors_assigned.size(); ++i)
+    {
+        if (colors_assigned[i] != max_color)
+        {
+            _g_nodes[i]._active = false;
+        }
+    }
+}
+
+void DBG::_set_edge_frequency(OwnNode_t node, OwnNode_t neighbor, float new_flow)
+{
+    auto it = find(_g_edges[node].begin(),_g_edges[node].end(), neighbor);
+    if (it == _g_edges[node].end())
+        return;
+    int index = it - _g_edges[node].begin();
+    _g_edges_reads[node][index] = new_flow;
 }
 
 void DBG::export_to_gfa(const vector<string> & sequence_map, string file_name, bool full_unitig_map)
@@ -4074,38 +4240,48 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::get_min_cost_flow_paths(floa
     Graph::ArcMap<Weight> weights(fn);
     for (size_t i = 0; i < _g_nodes.size(); ++i)
     {
-        Graph::Node n = fn.addNode();
-        translation_map[n] = _g_nodes[i]._id;
-        id_to_fn[_g_nodes[i]._id] = n;
+        if (_g_nodes[i]._active && !isolated(_g_nodes[i]._id)){
+            Graph::Node n = fn.addNode();
+            translation_map[n] = _g_nodes[i]._id;
+            id_to_fn[_g_nodes[i]._id] = n;
+        }
     }
     /*
      * Edges from s to sources and from sinks to t with inf capacity
      */
+    cout << "Starting sink/sources"<<endl;
     vector<UG_Node> sources_nodes = _get_starting_nodes_basic(), sink_nodes = _get_potential_sinks_basic();
     for (auto start_point: sources_nodes)
     {
         OwnNode_t id = start_point._id;
-        Graph::Arc a = fn.addArc(s, id_to_fn[id]);
-        capacity[a] = INF;weights[a] = 0.0;
+        if (!isolated(id)){
+            Graph::Arc a = fn.addArc(s, id_to_fn[id]);
+            capacity[a] = INF;weights[a] = 0.0;
+        }
     }
     for (auto sink_point: sink_nodes)
     {
         OwnNode_t id = sink_point._id;
-        Graph::Arc a = fn.addArc(id_to_fn[id], t);
-        capacity[a] = INF;weights[a] = 0.0;
+        if (!isolated(id)){
+            Graph::Arc a = fn.addArc(id_to_fn[id], t);
+            capacity[a] = INF;weights[a] = 0.0;
+        }
     }
+    cout << "End sink/sources"<<endl;
     /*
      * Rest edges
      */
     for (size_t i = 0; i < _g_edges.size(); ++i)
     {
-        /*
-         * Forward edge
-         */
-        for (size_t j = 0; j < _g_edges[i].size(); ++j)
-        {
-            Graph::Arc a = fn.addArc(id_to_fn[_g_nodes[i]._id], id_to_fn[_g_edges[i][j]]);
-            capacity[a] = _g_edges_reads[i][j]; weights[a] = (1/((_g_edges_reads[i][j] == 0)?0.001:_g_edges_reads[i][j]));
+        if (_g_nodes[i]._active && !isolated(_g_nodes[i]._id)){
+            /*
+            * Forward edge
+            */
+            for (size_t j = 0; j < _g_edges[i].size(); ++j)
+            {
+                Graph::Arc a = fn.addArc(id_to_fn[_g_nodes[i]._id], id_to_fn[_g_edges[i][j]]);
+                capacity[a] = _g_edges_reads[i][j]; weights[a] = (1/((_g_edges_reads[i][j] == 0)?0.001:_g_edges_reads[i][j]));
+            }
         }
     }
 
@@ -4124,10 +4300,14 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::get_min_cost_flow_paths(floa
         case NS::OPTIMAL:
         {
             unordered_set<OwnNode_t> targets_set, sources_set;
-            for (auto t: sink_nodes)
-                targets_set.emplace(t._id);
-            for (auto s: sources_nodes)
-                sources_set.emplace(s._id);
+            for (auto t: sink_nodes){
+                if (!isolated(t._id))
+                    targets_set.emplace(t._id);
+            }
+            for (auto s: sources_nodes){
+                if (!isolated(s._id))
+                    sources_set.emplace(s._id);
+            }
             std::function<void(Graph::Node, vector<Graph::Arc>&, float&)> __flow_to_path =
                     [this,& __flow_to_path,& fn, &available_flow, &targets_set,&translation_map]
                         (Graph::Node src,vector<Graph::Arc> & cur_path, float & it_max_flow)->void {
@@ -4157,10 +4337,13 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::get_min_cost_flow_paths(floa
                     };
             ns.flowMap(flows);
             cout << "cost=" << ns.totalCost() << endl;
-            cout << "Filling flow: "<<endl;
-            for (Graph::ArcIt a(fn); a != INVALID; ++a)
+            for (Graph::ArcIt a(fn); a != INVALID; ++a){
                 available_flow[a] = ns.flow(a);
-            cout << "Checking flow: "<<endl;
+                if (fn.source(a) == s || fn.target(a) == t)
+                    continue;
+                OwnNode_t node = translation_map[fn.source(a)], neighbor = translation_map[fn.target(a)];
+                _set_edge_frequency(node, neighbor, available_flow[a]);
+            }
             unordered_set<OwnNode_t> sources_added;
             vector<bool> traversed_node(_g_nodes.size(),false);
             size_t total = _g_nodes.size();
@@ -4169,35 +4352,36 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::get_min_cost_flow_paths(floa
                 vector <Graph::Arc> cur_path;
                 Graph::Arc selected;
                 float flow = -INF;
-                cout << "Getting source with highest flow: "<<endl;
                 for (auto s: sources_set)
                 {
-                    Graph::Node source_node = id_to_fn[s];
-                    Graph::OutArcIt a(fn, source_node);
-                    if (a == INVALID && sources_added.find(s) == sources_added.end())
-                    {
-                        vector <OwnNode_t> real_path(1,s);
-                        result_paths.push({0,real_path});
-                        sources_added.emplace(s);
-                        cout << "Source added: "<<s<<endl;
-                    }
-                    for (Graph::OutArcIt a(fn, source_node); a != INVALID; ++a) {
-                        float study_flow = available_flow[a];
-                        if (study_flow > flow) {
-                            flow = study_flow;
-                            selected = a;
+                    if (!isolated(s)){
+                        Graph::Node source_node = id_to_fn[s];
+                        Graph::OutArcIt a(fn, source_node);
+                        if (a == INVALID && sources_added.find(s) == sources_added.end())
+                        {
+                            vector <OwnNode_t> real_path(1,s);
+                            result_paths.push({0,real_path});
+                            sources_added.emplace(s);
                         }
+                        for (Graph::OutArcIt a(fn, source_node); a != INVALID; ++a) {
+                            float study_flow = available_flow[a];
+                            if (study_flow > flow) {
+                                flow = study_flow;
+                                selected = a;
+                            }
+                        }
+                    } else {
+                        cout << "Is isolated: "<<s<<endl;
                     }
                 }
                 if (flow == 0 || flow == -INF) {
                     cout << "No more path available!"<<endl;
                     break;
                 }
-                cout << "And the winner is... " << flow << " From: " << translation_map[fn.source(selected)]<<" "
-                            << translation_map[fn.target(selected)]<< endl;
+                //cout << "And the winner is... " << flow << " From: " << translation_map[fn.source(selected)]<<" "<< translation_map[fn.target(selected)]<< endl;
                 cur_path.push_back(selected);
                 __flow_to_path(fn.target(selected), cur_path, flow);
-                cout << "Max flow: " << flow << endl;
+                //cout << "Max flow: " << flow << endl;
                 vector <OwnNode_t> real_path;
                 for (size_t i_p = 0; i_p < cur_path.size(); i_p++) {
                     OwnNode_t solution_node_id_source = translation_map[fn.source(cur_path[i_p])]
@@ -4214,21 +4398,18 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::get_min_cost_flow_paths(floa
                     }
                     if (available_flow[cur_path[i_p]] - flow < 0)
                     {
-                        cout << "Something goes wrong!"<<endl;
+                        cout << "Something went wrong!"<<endl;
                         exit(1);
                     }
                     available_flow[cur_path[i_p]] = (available_flow[cur_path[i_p]] - flow < 0) ? 0 :
                                                     available_flow[cur_path[i_p]] - flow;
-                    cout << "From: " << solution_node_id_source << " to "<< solution_node_id_target<< endl;
+                    //cout << "From: " << solution_node_id_source << " to "<< solution_node_id_target<< endl;
                     if (solution_node_id_source != ids - 1)
                         real_path.push_back(_g_nodes[solution_node_id_source]._val);
                     if (i_p == cur_path.size() - 1 && solution_node_id_target != ids)
                         real_path.push_back(_g_nodes[solution_node_id_target]._val);
                 }
-                if (flow >= MIN_FLOW_PATH)
-                {
-                    result_paths.push(pair<size_t, vector < OwnNode_t >>((flow == INF)?_g_nodes[translation_map[fn.target(cur_path[0])]]._abundance:flow, real_path));
-                }
+                result_paths.push(pair<size_t, vector < OwnNode_t >>((flow == INF)?_g_nodes[translation_map[fn.target(cur_path[0])]]._abundance:flow, real_path));
             }
             cout << "Results path: "<<result_paths.size()<<endl;
             return result_paths;
