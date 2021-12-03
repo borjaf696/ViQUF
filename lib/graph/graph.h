@@ -728,7 +728,7 @@ private:
     bool _reach_e(OwnNode_t, OwnNode_t);
     bool _reach(OwnNode_t, OwnNode_t);
     void _print_reachability();
-    void _set_edge_frequency(OwnNode_t, OwnNode_t, float);
+    void _set_edge_frequency(OwnNode_t, OwnNode_t, float, bool = false);
     /*
      * Extension
      */

@@ -1735,20 +1735,53 @@ void DBG::export_graphs_sc()
     fdsc << "# graph number 1 name fdsc"<<endl;
     fdsc << number_of_actives_nodes << endl;
     int min_node_active = 9999999, max_node_active = -99999999;
-    for (int i = 0; i < _g_edges.size(); ++i)
-    {
-        if (_g_nodes[i]._active)
+    vector<bool> traversed_nodes(_g_nodes.size(),0);
+    std::function<vector<OwnNode_t>(OwnNode_t)> _get_next_nodes = [this, & traversed_nodes](OwnNode_t cur_node)->vector<OwnNode_t>{
+        auto out_neighs = getNeighbor(cur_node), in_neighs = getNeighbor(cur_node, false);
+        if (out_neighs.size() == 0)
+            return {};
+        auto new_node = cur_node;
+        traversed_nodes[new_node] = 1;
+        vector<OwnNode_t> links;
+        for (size_t i = 0; i < out_neighs.size(); ++i)
         {
-            min_node_active = (i < min_node_active)?i:min_node_active;
-            max_node_active = (i > max_node_active)?i:max_node_active;
-            for (size_t j = 0; j < _g_edges[i].size(); ++j)
+            new_node = out_neighs[i];
+            auto local_out_neighs = getNeighbor(new_node), local_in_neighs = getNeighbor(new_node, false);
+            while ((local_out_neighs.size() == 1) && (local_in_neighs.size() == 1))
             {
-                float capacity = (float)_g_edges_reads[i][j];
-                float upper_bound = capacity*1.05, lower_bound = capacity*0.95;
-                fd_standard << _g_nodes[i]._id <<" "<<_g_nodes[_g_edges[i][j]]._id<<" "<<capacity<<endl;
-                fd_inexact << _g_nodes[i]._id <<" "<<_g_nodes[_g_edges[i][j]]._id<<" "<<lower_bound<<" "<<upper_bound<<endl;
-                fdsc << _g_nodes[i]._id <<" "<<_g_nodes[_g_edges[i][j]]._id<<" "<<capacity<<endl;
+                traversed_nodes[new_node] = 1;
+                new_node = local_out_neighs[0];
+                local_out_neighs = getNeighbor(new_node);
+                local_in_neighs = getNeighbor(new_node, false);
             }
+            links.push_back(new_node);
+        }
+        return links;
+    };
+    auto starting_points = _get_starting_nodes_basic();
+    stack<OwnNode_t> nodes_to_traverse;
+    unordered_set<OwnNode_t> valid_nodes;
+    for (auto start_point: starting_points)
+        nodes_to_traverse.push(start_point._id);
+    while (!nodes_to_traverse.empty())
+    {
+        int cur_node = nodes_to_traverse.top();
+        nodes_to_traverse.pop();
+        if (traversed_nodes[cur_node])
+            continue;
+        valid_nodes.emplace(cur_node);
+        min_node_active = (cur_node < min_node_active)?cur_node:min_node_active;
+        max_node_active = (cur_node > max_node_active)?cur_node:max_node_active;
+        auto next_nodes = _get_next_nodes(cur_node);
+        size_t i = cur_node, j = 0;
+        for (auto node:next_nodes){
+            float capacity = (float)_g_edges_reads[i][j];
+            float upper_bound = capacity*1.05, lower_bound = capacity*0.95;
+            fd_standard << _g_nodes[i]._id <<" "<<node<<" "<<_g_edges_reads[i][j]<<endl;
+            fd_inexact << _g_nodes[i]._id <<" "<<node<<" "<<lower_bound<<" "<<upper_bound<<endl;
+            fdsc << _g_nodes[i]._id <<" "<<node<<" "<<_g_edges_reads[i][j]<<endl;
+            nodes_to_traverse.push(node);
+            j++;
         }
     }
     int source_node = min_node_active - 1, sink_node = max_node_active + 1;
@@ -1785,11 +1818,17 @@ void DBG::export_graphs_sc()
     fdsc << "# subpaths"<<endl;
     for (auto subpath_constraint:_subpath_constraints)
     {
+        vector<OwnNode_t> valid_sc;
         for (size_t i = 0; i < subpath_constraint.size(); ++i)
         {
-            fdsc << subpath_constraint[i]<<" ";
+            if (valid_nodes.find(subpath_constraint[i]) != valid_nodes.end())
+                valid_sc.push_back(subpath_constraint[i]);
         }
-        fdsc << "1.0"<<endl;
+        if (valid_sc.size() > 2){
+            for (auto sc_node: valid_sc)
+                fdsc << sc_node <<" ";
+            fdsc << "1.0"<<endl;
+        }
     }
     fd_standard.close();
     fd_inexact.close();
@@ -2644,13 +2683,16 @@ void DBG::get_largest_cc()
     }
 }
 
-void DBG::_set_edge_frequency(OwnNode_t node, OwnNode_t neighbor, float new_flow)
+void DBG::_set_edge_frequency(OwnNode_t node, OwnNode_t neighbor, float new_flow, bool additive)
 {
     auto it = find(_g_edges[node].begin(),_g_edges[node].end(), neighbor);
     if (it == _g_edges[node].end())
         return;
     int index = it - _g_edges[node].begin();
-    _g_edges_reads[node][index] = new_flow;
+    if (additive)
+        _g_edges_reads[node][index] += new_flow;
+    else
+        _g_edges_reads[node][index] = new_flow;
 }
 
 void DBG::export_to_gfa(const vector<string> & sequence_map, string file_name, bool full_unitig_map)
@@ -4338,7 +4380,7 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::get_min_cost_flow_paths(floa
             ns.flowMap(flows);
             cout << "cost=" << ns.totalCost() << endl;
             for (Graph::ArcIt a(fn); a != INVALID; ++a){
-                available_flow[a] = ns.flow(a);
+                available_flow[a] = capacity[a] - ns.flow(a);
                 if (fn.source(a) == s || fn.target(a) == t)
                     continue;
                 OwnNode_t node = translation_map[fn.source(a)], neighbor = translation_map[fn.target(a)];
@@ -4473,6 +4515,9 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
     Graph::ArcMap<Weight> weights(fn);
     for (size_t i = 0; i < _g_nodes.size(); ++i)
     {
+        if (Parameters::get().t_data == "TGS")
+            if (!_g_nodes[i]._active || isolated(_g_nodes[i]._id))
+                continue;
         Graph::Node n = fn.addNode();
         supplyMap[n] = 0;
         translation_map[n] = _g_nodes[i]._id;
@@ -4488,6 +4533,9 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
     for (auto start_point: sources_nodes)
     {
         OwnNode_t id = start_point._id;
+        if (Parameters::get().t_data == "TGS")
+            if (!_g_nodes[id]._active || isolated(_g_nodes[id]._id))
+                continue;
         sources_id_nodes.emplace_back(id);
         if (Parameters::get().debug)
             nw_file << "Source: "<<id<<endl;
@@ -4498,6 +4546,9 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
     for (auto sink_point: sink_nodes)
     {
         OwnNode_t id = sink_point._id;
+        if (Parameters::get().t_data == "TGS")
+            if (!_g_nodes[id]._active || isolated(_g_nodes[id]._id))
+                continue;
         sink_id_nodes.emplace_back(id);
         if (Parameters::get().debug)
             nw_file << "Sink: "<<id<<endl;
@@ -4510,6 +4561,9 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
      */
     for (size_t i = 0; i < _g_edges.size(); ++i)
     {
+        if (Parameters::get().t_data == "TGS")
+            if (!_g_nodes[i]._active || isolated(_g_nodes[i]._id))
+                continue;
         vector<Graph::Arc> arcs;
         if (Parameters::get().debug)
             nw_file << "Node: "<<i<<endl;
@@ -4518,7 +4572,10 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
          * Forward edge
          */
         for (size_t j = 0; j < _g_edges[i].size(); ++j)
-        {
+        {    
+            if (Parameters::get().t_data == "TGS")
+                if (!_g_nodes[_g_edges[i][j]]._active || isolated(_g_nodes[_g_edges[i][j]]._id))
+                    continue;
             if (Parameters::get().debug)
                 nw_file << "Neigh: "<<_g_edges[i][j] << " with freq: "<<_g_edges_reads[i][j]<<endl;
             Graph::Node src = id_to_fn[_g_nodes[i]._id], tg = id_to_fn[_g_edges[i][j]];
@@ -4536,6 +4593,11 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
             if (out_degree(_g_edges[i][j]) == 0)
                 //weight = 2/_g_edges_reads[i][j];
                 weight = 2/frequency_edge;
+            if (Parameters::get().t_data == "TGS")
+            {
+                if (in_degree(i) == 1 & out_degree(i) == 1)
+                    weight = 0;
+            }
             weights[a] = weight;
             /*
              * Supply map
@@ -4553,6 +4615,9 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
          */
         for (size_t j = 0; j < _g_edges[i].size(); ++j)
         {
+            if (Parameters::get().t_data == "TGS")
+                if (!_g_nodes[_g_edges[i][j]]._active || isolated(_g_nodes[_g_edges[i][j]]._id))
+                    continue;
             Graph::Node tg = id_to_fn[_g_nodes[i]._id], src = id_to_fn[_g_edges[i][j]];
             Graph::Arc a = fn.addArc(src, tg);
             trueArc[a] = false;backward_to_forward[a] = arcs[j];lowerMap[a] = 0;
@@ -4575,6 +4640,9 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
      */
     for (size_t i = 0; i < _g_nodes.size(); ++i)
     {
+        if (Parameters::get().t_data == "TGS")
+                if (!_g_nodes[i]._active || isolated(_g_nodes[i]._id))
+                    continue;
         Graph::Node src = id_to_fn[_g_nodes[i]._id];
         if (supplyMap[src] > 0)
         {
@@ -4688,12 +4756,14 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
                     nw_file << "Required flow: "<<supplyMap[i]<<endl;
                     for (Graph::OutArcIt edge(fn, i); edge != INVALID; ++edge)
                     {
+                        nw_file << "True arc: "<<trueArc[edge]<<endl;
                         nw_file << "Outflow node: "<<flows[edge]<<endl;
                         nw_file << "Capacity: "<<capacity[edge]<<endl;
                         nw_file << "Source: "<<translation_map[fn.source(edge)]<<" Target: "<<translation_map[fn.target(edge)]<<endl;
                     }
                     for (Graph::InArcIt edge(fn, i); edge != INVALID; ++edge)
                     {
+                        nw_file << "True arc: "<<trueArc[edge]<<endl;
                         nw_file << "Inflow node: "<<flows[edge]<<endl;
                         nw_file << "Capacity: "<<capacity[edge] <<endl;
                         nw_file << "Source: "<<translation_map[fn.source(edge)]<<" Target: "<<translation_map[fn.target(edge)]<<endl;
@@ -4713,7 +4783,7 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
                             nw_file << "Flow (backward): "<<flows[forward_to_backward[a]]<<" Source: "<<translation_map[fn.source(forward_to_backward[a])]
                                     << " Target: "<<translation_map[fn.target(forward_to_backward[a])]<<endl;
                     }
-                } else if (fn.target(a) != t_star && fn.source(a) != s_star && fn.source(a) != s) {
+                } else if (fn.target(a) != t_star && fn.source(a) != s_star) {
                     available_flow[backward_to_forward[a]] -= flows[a];
                     /*if (Parameters::get().debug) {
                         if (!trueArc[a]) {
@@ -4726,19 +4796,18 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
                                     << " Target: " << translation_map[fn.target(backward_to_forward[a])] << endl;
                         }
                     }*/
-                } else {
-                    /*if (Parameters::get().debug) {
-                        if (!trueArc[a]) {
-                            nw_file << "From exceptional point: "<<endl;
-                            nw_file << "Source: " << translation_map[fn.source(a)] << " Target: "
-                                    << translation_map[fn.target(a)]
-                                    << " Available flow: " << available_flow[backward_to_forward[a]] << " Flows: "
-                                    << flows[a]
-                                    << " Flows(forward): " << flows[backward_to_forward[a]] << endl;
-                            nw_file << "Source: " << translation_map[fn.source(backward_to_forward[a])]
-                                    << " Target: " << translation_map[fn.target(backward_to_forward[a])] << endl;
-                        }
-                    }*/
+                }
+            }
+            if (Parameters::get().t_data == "TGS"){
+                for (Graph::ArcIt a(fn); a != INVALID; ++a)
+                {
+                    if (fn.source(a) == s || fn.target(a) == t)
+                        continue;
+                    if (trueArc[a]){
+                        OwnNode_t node = translation_map[fn.source(a)], neighbor = translation_map[fn.target(a)];
+                        cout << "Flow: "<<available_flow[a]<<" "<<node<<" "<<neighbor<<endl;
+                        _set_edge_frequency(node, neighbor,available_flow[a]);
+                    }
                 }
             }
             unordered_set<OwnNode_t> sources_added;
@@ -4810,6 +4879,16 @@ priority_queue<pair<size_t,vector<OwnNode_t>>> DBG::solve_std_mcp(const vector<s
                         real_path.push_back(_g_nodes[solution_node_id_source]._val);
                     if (i_p == cur_path.size() - 1 && solution_node_id_target != (ids-2))
                         real_path.push_back(_g_nodes[solution_node_id_target]._val);
+                }
+                if (Parameters::get().t_data == "TGS")
+                {
+                    if (flow > 1)
+                    {
+                        result_paths.push(pair<size_t, vector < OwnNode_t >>((flow == INF)?_g_nodes[translation_map[fn.source(cur_path[0])]]._abundance:flow, real_path));    
+                    } else {
+                        for (size_t i = 0; i < real_path.size(); ++i)
+                            _set_edge_frequency(real_path[i], real_path[i+1], flow, true);
+                    }
                 }
                 if (flow >= MIN_FLOW_PATH || (flag_full_unitigs_map & flow > 5))
                 {

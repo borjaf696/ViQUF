@@ -777,11 +777,8 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
         unitigs_nf_with_freqs_2 = apdbg.solve_std_mcp(sequence_map);
         cout << "End std_mcp"<<endl;
     } else {
-        cout << "Solve max flow"<<endl;
-        float max_flow = g.to_max_flow_solution();
-        cout << "Max flow: "<<max_flow<<endl;
-        cout << "Translate the flow into paths: "<<endl;
-        unitigs_nf_with_freqs_2 = g.get_min_cost_flow_paths(max_flow);
+        cout << "Solve flow in network"<<endl;
+        unitigs_nf_with_freqs_2 = g.solve_std_mcp(sequence_map);
         cout << "Number of paths: "<<unitigs_nf_with_freqs_2.size()<<endl;
     }
     vector<vector<OwnNode_t>> unitigs_nf_2;
