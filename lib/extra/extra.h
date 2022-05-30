@@ -189,6 +189,7 @@ struct Maths{
     template<typename T>
     static T median(vector<T> container)
     {
+        sort(container.begin(), container.end());
         size_t place = ceil((float) container.size() * 0.5)-1;
         return (container[place] == 0)?(container[place + 1]):container[place];
     }

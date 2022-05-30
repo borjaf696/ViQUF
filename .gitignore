@@ -10,6 +10,7 @@ HIV_Real
 Real
 debug/*
 graphs/*
+graphs_sc/*
 post_process
 quast_results
 results

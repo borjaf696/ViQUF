@@ -778,6 +778,9 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
         cout << "End std_mcp"<<endl;
     } else {
         cout << "Solve flow in network"<<endl;
+        // Max flow
+        // unitigs_nf_with_freqs_2 = g.get_min_cost_flow_paths(g.to_max_flow_solution());
+        // MCP
         unitigs_nf_with_freqs_2 = g.solve_std_mcp(sequence_map);
         cout << "Number of paths: "<<unitigs_nf_with_freqs_2.size()<<endl;
     }
@@ -993,16 +996,16 @@ int main (int argc, char* argv[])
                 cout << "Export original freqs:"<<endl;
                 g.exportFreqMap("graphs/tgs_dbg_freq_map_original.txt");
             }
-            cout << "Counting read lengths: "<<endl;
-            unordered_map<size_t, size_t> length_reads, reads_distribution, survival_distribution;
-            float average_length = _get_reads_length_distribution(g,append_file,length_reads, reads_distribution, survival_distribution,string(argv[1]));
-            cout << "Set frequencies:" <<endl;
-            g.readjust_frequencies(reads_distribution, survival_distribution, length_reads, average_length);
             if (Parameters::get().t_data == "TGS")
             {
                 cout << "Counting ccs"<<endl;
                 g.get_largest_cc();
             }
+            cout << "Counting read lengths: "<<endl;
+            unordered_map<size_t, size_t> length_reads, reads_distribution, survival_distribution;
+            float average_length = _get_reads_length_distribution(g,append_file,length_reads, reads_distribution, survival_distribution,string(argv[1]));
+            cout << "Set frequencies:" <<endl;
+            g.readjust_frequencies(reads_distribution, survival_distribution, length_reads, average_length);
             if (Parameters::get().debug) {
                 cout << "Reporting graphs"<<endl;
                 g.exportFreqMap("graphs/dbg_freq_map_postsubsane.txt");

@@ -29,6 +29,7 @@
 #include <lemon/list_graph.h>
 #include <lemon/cycle_canceling.h>
 #include <lemon/preflow.h>
+#include <lemon/maps.h>
 #include <lemon/edmonds_karp.h>
 
 //Polish parameters - MOD 500

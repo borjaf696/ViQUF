@@ -507,6 +507,7 @@ if __name__=='__main__':
             print('Path: ', path)
             print('Kmer-size: ', kmerSize)
             print('*********************************************')
+            # Prev filtering True
             rG = RepresentantGraph(path, kmerSize, abundanceMin, meta = False, filtering = True, output_prefix = tmpDir+'/unitigs')
         #pathIn = ['/home/bfreire/Gatb-trial/tmpresultsDir_Consent/CONSENT_corrected.fasta']
     elif type == 'amplicons':
