@@ -1792,12 +1792,16 @@ void DBG::export_graphs_sc()
                 fd_standard << nodes.second <<" "<<node<<" "<<_g_edges_reads[i][j]<<endl;
                 fd_inexact << _g_nodes[i]._id <<" "<<nodes.second<<" "<<lower_bound<<" "<<upper_bound<<endl;
                 fd_inexact << nodes.second <<" "<<node<<" "<<lower_bound<<" "<<upper_bound<<endl;
+                fdsc << _g_nodes[i]._id <<" "<<nodes.second<<" "<<_g_edges_reads[i][j]<<endl;
+                fdsc << nodes.second <<" "<<node<<" "<<_g_edges_reads[i][j]<<endl;
+                valid_nodes.emplace(nodes.second);
             } else {
                 fd_standard << _g_nodes[i]._id << " " << node << " "<<_g_edges_reads[i][j]<<endl;
                 fd_inexact << _g_nodes[i]._id <<" "<<node<<" "<<lower_bound<<" "<<upper_bound<<endl;
+                fdsc << _g_nodes[i]._id <<" "<<node<<" "<<_g_edges_reads[i][j]<<endl;
             }
-            fdsc << _g_nodes[i]._id <<" "<<node<<" "<<_g_edges_reads[i][j]<<endl;
             nodes_to_traverse.push(node);
+            valid_nodes.emplace(node);
             j++;
         }
     }
@@ -1813,6 +1817,7 @@ void DBG::export_graphs_sc()
         fd_standard << source_node <<" "<<_g_nodes[s._id]._id<<" "<<capacity<<endl;
         fd_inexact << source_node <<" "<<_g_nodes[s._id]._id<<" "<<lower_bound<<" "<<upper_bound<<endl;
         fdsc << source_node <<" "<<_g_nodes[s._id]._id<<" "<<capacity<<endl;
+        valid_nodes.emplace(_g_nodes[s._id]._id);
     }
     // From graph sinks to global sink
     for (auto s:sinks)
@@ -1831,20 +1836,24 @@ void DBG::export_graphs_sc()
         fd_standard << _g_nodes[s._id]._id <<" "<<sink_node<<" "<<capacity<<endl;
         fd_inexact << _g_nodes[s._id]._id <<" "<<sink_node<<" "<<lower_bound<<" "<<upper_bound<<endl;
         fdsc << _g_nodes[s._id]._id << " "<<sink_node<<" "<<capacity<<endl;
+        valid_nodes.emplace(_g_nodes[s._id]._id);
     }
     sc << "# subpaths"<<endl;
     for (auto subpath_constraint:_subpath_constraints)
     {
         vector<OwnNode_t> valid_sc;
-        for (size_t i = 0; i < subpath_constraint.size(); ++i)
+        for (auto node_sc: subpath_constraint)
         {
-            if (valid_nodes.find(subpath_constraint[i]) != valid_nodes.end())
-                valid_sc.push_back(subpath_constraint[i]);
+            if (valid_nodes.find(node_sc) != valid_nodes.end())
+                valid_sc.push_back(node_sc);
+            else if (node_sc == 118)
+                cout << "Not valid nodes: "<<node_sc<<endl;
         }
         if (valid_sc.size() > 2){
+            sc << "1.0"<<" ";
             for (auto sc_node: valid_sc)
                 sc << sc_node <<" ";
-            sc << "1.0"<<endl;
+            sc << endl;
         }
     }
     fd_standard.close();
@@ -2868,7 +2877,9 @@ void DBG::readjust_frequencies(const unordered_map<size_t, size_t> & distributio
     // If method == 2 - algorithmical method
     size_t method = 2;
     vector<float> depths = vector<float>(_genome_length, 0), ratios;
+    vector<float> new_depths; 
     vector<vector<float>> depths_per_branch = vector<vector<float>>(_genome_length, vector<float>());
+    vector<vector<float>> depths_per_branch_original = vector<vector<float>>(_genome_length, vector<float>());
     if (method == 1){
         for (size_t i = 0; i < _g_nodes.size(); ++i)
         {
@@ -2890,33 +2901,41 @@ void DBG::readjust_frequencies(const unordered_map<size_t, size_t> & distributio
             if (!_g_nodes[i]._active)
                 continue;
             float placement = _g_nodes[i]._placement, length = _g_nodes[i]._length, abundance = _g_nodes[i]._abundance;
-            for (size_t j = ((in_degree(_g_nodes[i]._id) == 0)?0:Parameters::get().kmerSize); j < length; ++j){
+            for (size_t j = ((in_degree(_g_nodes[i]._id) == 0)?0:Parameters::get().kmerSize - 1); j < length; ++j){
                 depths[placement + j] += (float) abundance;
                 maximal_depth = (depths[placement + j] > maximal_depth)?depths[placement + j]:maximal_depth;
-                depths_per_branch[placement + j].push_back((float) abundance);
             }
         }
         cout << "Maximal depth: "<<maximal_depth<<endl;
         // Get ratios for position
         for (size_t i = 0; i < _genome_length; ++i)
-            ratios.push_back(maximal_depth / depths[i]); 
+            ratios.push_back(max(maximal_depth / depths[i],(float)1e-10)); 
         // Change abundance at position p, based on the mean of the ratios in the places it covers.
+        new_depths = vector<float>(_genome_length, 0);
         for (size_t i = 0; i < _g_nodes.size(); ++i)
         {
+            if (!_g_nodes[i]._active)
+                continue;
             float placement = _g_nodes[i]._placement, length = _g_nodes[i]._length;
             vector<float> ratio;
-            for (size_t j = 0; j < length; ++j)
+            for (size_t j = Parameters::get().kmerSize - 1; j < length; ++j){
                 ratio.push_back(ratios[placement + j]);
+            }
             float ratio_local = Maths::median(ratio);
+            for (size_t j = Parameters::get().kmerSize - 1; j < length; ++j){
+                depths_per_branch_original[placement + j].push_back((float) _g_nodes[i]._abundance);
+                depths_per_branch[placement + j].push_back((float)  (_g_nodes[i]._abundance * ratio_local));
+                new_depths[placement + j] += (float)  (_g_nodes[i]._abundance * ratio_local);
+            }
             _g_nodes[i]._abundance *= ratio_local;
+            float total_freq = 0.;
+            for (size_t j = 0; j < _g_edges_reads[i].size(); ++j)
+                total_freq += (float)_g_edges_reads[i][j];
             for (size_t j = 0; j < _g_edges_reads[i].size(); ++j){
-                _g_edges_reads[i][j] *= ratio_local;
-                if (_g_edges_reads[i][j] == 0){
-                    for (auto r:ratio)
-                    {
-                        cout << "R: "<<r<<endl;
-                    }
-                    cout << "Ratio: "<<ratio_local<<endl;
+                _g_edges_reads[i][j] = ((float) _g_edges_reads[i][j]) * (_g_edges_reads[i][j] /total_freq)* ratio_local;
+                if (_g_edges_reads[i][j] == 0)
+                {
+                    cout << "Node: "<<_g_nodes[i]._val<<" "<<_g_nodes[i]._abundance<<endl;
                 }
             }
         }
@@ -2926,12 +2945,17 @@ void DBG::readjust_frequencies(const unordered_map<size_t, size_t> & distributio
         cout << "Exporting ratios in: "<<"graphs/ratios.txt"<<endl;
         std::ofstream outfile("graphs/ratios.txt", std::ofstream::binary);
         std::ofstream depthsfile("graphs/depths.txt", std::ofstream::binary);
+        std::ofstream adjusted_depthsfile("graphs/adjusted_depths.txt", std::ofstream::binary);
         std::ofstream depths_per_branchfile("graphs/depth_per_branch.txt", std::ofstream::binary);
+        std::ofstream depths_per_branch_originalfile("graphs/depth_per_branch_original.txt", std::ofstream::binary);
         for (size_t i = 0; i < _genome_length; ++i){
             outfile <<i<<"\t"<<ratios[i]<<endl;
+            adjusted_depthsfile << i <<"\t"<<new_depths[i]<<endl;
             depthsfile << i <<"\t"<<depths[i]<<endl;
-            for (size_t j = 0; j < depths_per_branch[i].size(); ++j)
+            for (size_t j = 0; j < depths_per_branch[i].size(); ++j){
                 depths_per_branchfile << i<<"\t"<<j<<"\t"<<depths_per_branch[i][j]<<endl;
+                depths_per_branch_originalfile << i << "\t" << j << "\t"<<depths_per_branch_original[i][j]<<endl;
+            }
         }
         outfile.close();
         depthsfile.close();

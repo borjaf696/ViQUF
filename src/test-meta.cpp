@@ -786,6 +786,7 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
     }
     vector<vector<OwnNode_t>> unitigs_nf_2;
     vector<size_t> flows_2;
+    bool show = false;
     while(!unitigs_nf_with_freqs_2.empty()) {
         pair<size_t,vector<OwnNode_t>> u = unitigs_nf_with_freqs_2.top();
         unitigs_nf_with_freqs_2.pop();
@@ -793,29 +794,36 @@ void _build_process_cliques(DBG & g, const vector<string> & sequence_map,
         if (pair_subs.first == -1){
             unitigs_nf_2.push_back(u.second);
             flows_2.push_back(u.first);
-            cout << "Flow: "<<u.first<<endl;
-            for (auto u:u.second)
-                cout << " " << u <<" -> ";
-            cout << endl;
+            if (show){
+                cout << "Flow: "<<u.first<<endl;
+                for (auto u:u.second)
+                    cout << " " << u <<" -> ";
+                cout << endl;
+            }
         } else {
-            cout << "Sustitution: "<<pair_subs.first<<" at "<<pair_subs.second<<endl;
             if (pair_subs.first == 1) {
-                cout << "My length: "<<u.second.size() << " The one that covers me: "<<unitigs_nf_2[pair_subs.second].size()<<endl;
-                cout << "Original flow: "<<flows_2[pair_subs.second]<<" Adding: "<<u.first<<endl;
                 flows_2[pair_subs.second] += u.first;
-                cout << "Final flow: "<<flows_2[pair_subs.second]<<" Unitig: "<<pair_subs.second<<endl;
+                if (show){
+                    cout << "Sustitution: "<<pair_subs.first<<" at "<<pair_subs.second<<endl;
+                    cout << "My length: "<<u.second.size() << " The one that covers me: "<<unitigs_nf_2[pair_subs.second].size()<<endl;
+                    cout << "Original flow: "<<flows_2[pair_subs.second]<<" Adding: "<<u.first<<endl;
+                    cout << "Final flow: "<<flows_2[pair_subs.second]<<" Unitig: "<<pair_subs.second<<endl;
+                }
              } else { 
-                cout << "My length: "<<u.second.size() << " The one I cover: "<<unitigs_nf_2[pair_subs.second].size()<<endl;
-                cout << "Original flow: "<<flows_2[pair_subs.second]<<" Increase: "<<u.first<<endl;
-                cout << "Final flow: "<<flows_2[pair_subs.second] + u.first<<endl;
                 unitigs_nf_2.push_back(u.second);
                 flows_2.push_back(flows_2[pair_subs.second] + u.first);
                 unitigs_nf_2.erase(unitigs_nf_2.begin() + pair_subs.second);
                 flows_2.erase(flows_2.begin() + pair_subs.second);
-                cout << "Flow (reinsertion case): "<<u.first<<endl;
-                for (auto u:u.second)
-                    cout << " " << u <<" -> ";
-                cout << endl;
+                if (show)
+                {
+                    cout << "My length: "<<u.second.size() << " The one I cover: "<<unitigs_nf_2[pair_subs.second].size()<<endl;
+                    cout << "Original flow: "<<flows_2[pair_subs.second]<<" Increase: "<<u.first<<endl;
+                    cout << "Final flow: "<<flows_2[pair_subs.second] + u.first<<endl;
+                    cout << "Flow (reinsertion case): "<<u.first<<endl;
+                    for (auto u:u.second)
+                        cout << " " << u <<" -> ";
+                    cout << endl;
+                }
             }
         }
     }

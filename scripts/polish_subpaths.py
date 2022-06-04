@@ -22,15 +22,16 @@ def _polish_subpaths(path):
                 start_check = True
                 subpath_starts = i
             elif start_check:
-                new_subpath = list(map(lambda x:int(x),l.split(' ')[:-1]))
+                new_subpath = list(map(lambda x:int(x),l.split(' ')[1:]))
                 if _check_subpaths(subpaths, new_subpath):
                     subpaths[i - subpath_starts - 1] = new_subpath
             else:
                 w.write(line)
         w.write('# subpaths\n')
+        w.write(''+str(len(subpaths))+'\n')
         for key, subpath in subpaths.items():
             new_s = list(map(lambda x: str(x), subpath))
-            w.write(' '.join(new_s)+' 1.0\n')
+            w.write('1.0 '+' '.join(new_s)+'\n')
 if __name__ == '__main__':
     assert len(sys.argv) > 1
 

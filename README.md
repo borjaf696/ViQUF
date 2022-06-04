@@ -46,6 +46,13 @@ The overall workflow is as follows:
 * Third Generation Sequencing - new approaches to deal with this type of data. Right now, we are able to infer a valid flow from the data (all test over simlord high depth simulated data).
 	* TODO: Apply Flow decomposition with subpath constraints.
 
+## Dockerfile
+Exists a Dockerfile which automatizes the installation procedure. To use it just run:
+
+* sudo docker rm [your_decision_docker_name]
+* sudo docker build -t [your_decision_docker_name] . --no-cache
+* sudo docker run -d --name [your_decision_docker_name] [your_decision_docker_name]
+
 ## Command line standard:
 
 The file **execution-script** contains an example about how to execute the code.
